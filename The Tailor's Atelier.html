@@ -1,0 +1,909 @@
+<!DOCTYPE html>
+<!-- saved from url=(0043)https://thetailorsatelier.godaddysites.com/ -->
+<html lang="en-US"><script type="text/javascript" async="" defer="" src="./The Tailor&#39;s Atelier_files/reamaze-push.js"></script><script type="text/javascript" async="" defer="" src="./The Tailor&#39;s Atelier_files/reamaze.js"></script><script>
+    window[Symbol.for('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')] = new (class PostClient {
+    constructor(name, destination) {
+        this.name = name;
+        this.destination = destination;
+        this.serverListeners = {};
+        this.bgRequestsListeners = {};
+        this.bgEventsListeners = {};
+        window.addEventListener('message', (message) => {
+            const data = message.data;
+            const isNotForMe = !(data.destination && data.destination === this.name);
+            const hasNotEventProp = !data.event;
+            if (isNotForMe || hasNotEventProp) {
+                return;
+            }
+            if (data.event === 'MARIO_POST_SERVER__BG_RESPONSE') {
+                const response = data.args;
+                if (this.hasBgRequestListener(response.requestId)) {
+                    try {
+                        this.bgRequestsListeners[response.requestId](response.response);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                    delete this.bgRequestsListeners[response.requestId];
+                }
+            }
+            else if (data.event === 'MARIO_POST_SERVER__BG_EVENT') {
+                const response = data.args;
+                if (this.hasBgEventListener(response.event)) {
+                    try {
+                        this.bgEventsListeners[data.id](response.payload);
+                    }
+                    catch (e) {
+                        console.log(e);
+                    }
+                }
+            }
+            else if (this.hasServerListener(data.event)) {
+                try {
+                    this.serverListeners[data.event](data.args);
+                }
+                catch (e) {
+                    console.log(e);
+                }
+            }
+            else {
+                console.log(`event not handled: ${data.event}`);
+            }
+        });
+    }
+    emitToServer(event, args) {
+        const id = this.generateUIID();
+        const message = {
+            args,
+            destination: this.destination,
+            event,
+            id,
+        };
+        window.postMessage(message, location.origin);
+        return id;
+    }
+    emitToBg(bgEventName, args) {
+        const requestId = this.generateUIID();
+        const request = { bgEventName, requestId, args };
+        this.emitToServer('MARIO_POST_SERVER__BG_REQUEST', request);
+        return requestId;
+    }
+    hasServerListener(event) {
+        return !!this.serverListeners[event];
+    }
+    hasBgRequestListener(requestId) {
+        return !!this.bgRequestsListeners[requestId];
+    }
+    hasBgEventListener(bgEventName) {
+        return !!this.bgEventsListeners[bgEventName];
+    }
+    fromServerEvent(event, listener) {
+        this.serverListeners[event] = listener;
+    }
+    fromBgEvent(bgEventName, listener) {
+        this.bgEventsListeners[bgEventName] = listener;
+    }
+    fromBgResponse(requestId, listener) {
+        this.bgRequestsListeners[requestId] = listener;
+    }
+    generateUIID() {
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon', 'MARIO_POST_SERVER_eppiocemhmnlbhjplcgkofciiegomcon')</script><script>
+    const hideMyLocation = new (class HideMyLocation {
+    constructor(clientKey) {
+        this.clientKey = clientKey;
+        this.watchIDs = {};
+        this.client = window[Symbol.for(clientKey)];
+        const getCurrentPosition = navigator.geolocation.getCurrentPosition;
+        const watchPosition = navigator.geolocation.watchPosition;
+        const clearWatch = navigator.geolocation.clearWatch;
+        const self = this;
+        navigator.geolocation.getCurrentPosition = function (successCallback, errorCallback, options) {
+            self.handle(getCurrentPosition, 'GET', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.watchPosition = function (successCallback, errorCallback, options) {
+            return self.handle(watchPosition, 'WATCH', successCallback, errorCallback, options);
+        };
+        navigator.geolocation.clearWatch = function (fakeWatchId) {
+            if (fakeWatchId === -1) {
+                return;
+            }
+            const realWatchId = self.watchIDs[fakeWatchId];
+            delete self.watchIDs[fakeWatchId];
+            return clearWatch.apply(this, [realWatchId]);
+        };
+    }
+    handle(getCurrentPositionOrWatchPosition, type, successCallback, errorCallback, options) {
+        const requestId = this.client.emitToBg('HIDE_MY_LOCATION__GET_LOCATION');
+        let fakeWatchId = this.getRandomInt(0, 100000);
+        this.client.fromBgResponse(requestId, (response) => {
+            if (response.enabled) {
+                if (response.status === 'SUCCESS') {
+                    const position = this.map(response);
+                    successCallback(position);
+                }
+                else {
+                    const error = this.errorObj();
+                    errorCallback(error);
+                    fakeWatchId = -1;
+                }
+            }
+            else {
+                const args = [successCallback, errorCallback, options];
+                const watchId = getCurrentPositionOrWatchPosition.apply(navigator.geolocation, args);
+                if (type === 'WATCH') {
+                    this.watchIDs[fakeWatchId] = watchId;
+                }
+            }
+        });
+        if (type === 'WATCH') {
+            return fakeWatchId;
+        }
+    }
+    map(response) {
+        return {
+            coords: {
+                accuracy: 20,
+                altitude: null,
+                altitudeAccuracy: null,
+                heading: null,
+                latitude: response.latitude,
+                longitude: response.longitude,
+                speed: null,
+            },
+            timestamp: Date.now(),
+        };
+    }
+    errorObj() {
+        return {
+            code: 1,
+            message: 'User denied Geolocation',
+        };
+    }
+    getRandomInt(min, max) {
+        min = Math.ceil(min);
+        max = Math.floor(max);
+        return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+})('MARIO_POST_CLIENT_eppiocemhmnlbhjplcgkofciiegomcon')
+  </script><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><link rel="icon" href="https://img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/favicon/868e54b4-e0dd-421d-aaaf-ded5693fb813.png/:/rs=w:16,h:16,m" sizes="16x16"><link rel="icon" href="https://img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/favicon/868e54b4-e0dd-421d-aaaf-ded5693fb813.png/:/rs=w:24,h:24,m" sizes="24x24"><link rel="icon" href="https://img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/favicon/868e54b4-e0dd-421d-aaaf-ded5693fb813.png/:/rs=w:32,h:32,m" sizes="32x32"><link rel="icon" href="https://img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/favicon/868e54b4-e0dd-421d-aaaf-ded5693fb813.png/:/rs=w:48,h:48,m" sizes="48x48"><link rel="icon" href="https://img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/favicon/868e54b4-e0dd-421d-aaaf-ded5693fb813.png/:/rs=w:64,h:64,m" sizes="64x64"><meta http-equiv="X-UA-Compatible" content="IE=edge"><meta name="viewport" content="width=device-width, initial-scale=1"><title>(1) - Let me know if you have any questions!</title><meta name="author" content="The Tailor&#39;s Atelier"><meta name="generator" content="Starfield Technologies; Go Daddy Website Builder 8.0.0000"><link rel="manifest" href="https://thetailorsatelier.godaddysites.com/manifest.webmanifest"><link rel="apple-touch-icon" sizes="57x57" href="https://img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:57,h:57,m"><link rel="apple-touch-icon" sizes="60x60" href="https://img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:60,h:60,m"><link rel="apple-touch-icon" sizes="72x72" href="https://img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:72,h:72,m"><link rel="apple-touch-icon" sizes="114x114" href="https://img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:114,h:114,m"><link rel="apple-touch-icon" sizes="120x120" href="https://img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:120,h:120,m"><link rel="apple-touch-icon" sizes="144x144" href="https://img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:144,h:144,m"><link rel="apple-touch-icon" sizes="152x152" href="https://img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:152,h:152,m"><link rel="apple-touch-icon" sizes="180x180" href="https://img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:180,h:180,m"><meta property="og:url" content="https://thetailorsatelier.godaddysites.com/">
+<meta property="og:site_name" content="The Tailor&#39;s Atelier">
+<meta property="og:title" content="The Tailor&#39;s Atelier">
+<meta property="og:type" content="website">
+<meta property="og:image" content="https://i.vimeocdn.com/video/1722470237-081a4c12f3716ab37fe25c81c1953c64c10300b244ed9978b640ac540b38dbe0-d_960x540?r=pad">
+<meta property="og:locale" content="en_US">
+<meta name="twitter:card" content="summary">
+<meta name="twitter:title" content="The Tailor&#39;s Atelier">
+<meta name="twitter:description" content="Custom design &amp; alteration">
+<meta name="twitter:image" content="https://i.vimeocdn.com/video/1722470237-081a4c12f3716ab37fe25c81c1953c64c10300b244ed9978b640ac540b38dbe0-d_960x540?r=pad">
+<meta name="twitter:image:alt" content="The Tailor&#39;s Atelier">
+<meta name="theme-color" content="#6da89a"><style data-inline-fonts="">/* cyrillic-ext */
+@font-face {
+  font-family: 'Fjalla One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/fjallaone/v15/Yq6R-LCAWCX3-6Ky7FAFrOx6kjouQb5-6g.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Fjalla One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/fjallaone/v15/Yq6R-LCAWCX3-6Ky7FAFrO56kjouQb5-6g.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Fjalla One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/fjallaone/v15/Yq6R-LCAWCX3-6Ky7FAFrO96kjouQb5-6g.woff2) format('woff2');
+  unicode-range: U+0100-02AF, U+0304, U+0308, U+0329, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Fjalla One';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/fjallaone/v15/Yq6R-LCAWCX3-6Ky7FAFrOF6kjouQb4.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZMkidh18S0xR41YDw.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZMkido18S0xR41YDw.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZMkidg18S0xR41YDw.woff2) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZMkidv18S0xR41YDw.woff2) format('woff2');
+  unicode-range: U+0370-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZMkidj18S0xR41YDw.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZMkidi18S0xR41YDw.woff2) format('woff2');
+  unicode-range: U+0100-02AF, U+0304, U+0308, U+0329, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZMkids18S0xR41.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK1dSBYKcSV-LCoeQqfX1RYOo3qPZ7qsDJB9cme_xc.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK1dSBYKcSV-LCoeQqfX1RYOo3qPZ7jsDJB9cme_xc.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK1dSBYKcSV-LCoeQqfX1RYOo3qPZ7rsDJB9cme_xc.woff2) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK1dSBYKcSV-LCoeQqfX1RYOo3qPZ7ksDJB9cme_xc.woff2) format('woff2');
+  unicode-range: U+0370-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK1dSBYKcSV-LCoeQqfX1RYOo3qPZ7osDJB9cme_xc.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK1dSBYKcSV-LCoeQqfX1RYOo3qPZ7psDJB9cme_xc.woff2) format('woff2');
+  unicode-range: U+0100-02AF, U+0304, U+0308, U+0329, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK1dSBYKcSV-LCoeQqfX1RYOo3qPZ7nsDJB9cme.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZclSdh18S0xR41YDw.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZclSdo18S0xR41YDw.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZclSdg18S0xR41YDw.woff2) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZclSdv18S0xR41YDw.woff2) format('woff2');
+  unicode-range: U+0370-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZclSdj18S0xR41YDw.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZclSdi18S0xR41YDw.woff2) format('woff2');
+  unicode-range: U+0100-02AF, U+0304, U+0308, U+0329, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: italic;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKwdSBYKcSV-LCoeQqfX1RYOo3qPZZclSds18S0xR41.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ik4zwmhdu3cOWxy40.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ik4zwkxdu3cOWxy40.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ik4zwmxdu3cOWxy40.woff2) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ik4zwlBdu3cOWxy40.woff2) format('woff2');
+  unicode-range: U+0370-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ik4zwmBdu3cOWxy40.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ik4zwmRdu3cOWxy40.woff2) format('woff2');
+  unicode-range: U+0100-02AF, U+0304, U+0308, U+0329, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 300;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ik4zwlxdu3cOWxw.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK3dSBYKcSV-LCoeQqfX1RYOo3qNa7lujVj9_mf.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK3dSBYKcSV-LCoeQqfX1RYOo3qPK7lujVj9_mf.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK3dSBYKcSV-LCoeQqfX1RYOo3qNK7lujVj9_mf.woff2) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK3dSBYKcSV-LCoeQqfX1RYOo3qO67lujVj9_mf.woff2) format('woff2');
+  unicode-range: U+0370-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK3dSBYKcSV-LCoeQqfX1RYOo3qN67lujVj9_mf.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK3dSBYKcSV-LCoeQqfX1RYOo3qNq7lujVj9_mf.woff2) format('woff2');
+  unicode-range: U+0100-02AF, U+0304, U+0308, U+0329, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xK3dSBYKcSV-LCoeQqfX1RYOo3qOK7lujVj9w.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* cyrillic-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ig4vwmhdu3cOWxy40.woff2) format('woff2');
+  unicode-range: U+0460-052F, U+1C80-1C88, U+20B4, U+2DE0-2DFF, U+A640-A69F, U+FE2E-FE2F;
+}
+/* cyrillic */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ig4vwkxdu3cOWxy40.woff2) format('woff2');
+  unicode-range: U+0301, U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116;
+}
+/* greek-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ig4vwmxdu3cOWxy40.woff2) format('woff2');
+  unicode-range: U+1F00-1FFF;
+}
+/* greek */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ig4vwlBdu3cOWxy40.woff2) format('woff2');
+  unicode-range: U+0370-03FF;
+}
+/* vietnamese */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ig4vwmBdu3cOWxy40.woff2) format('woff2');
+  unicode-range: U+0102-0103, U+0110-0111, U+0128-0129, U+0168-0169, U+01A0-01A1, U+01AF-01B0, U+0300-0301, U+0303-0304, U+0308-0309, U+0323, U+0329, U+1EA0-1EF9, U+20AB;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ig4vwmRdu3cOWxy40.woff2) format('woff2');
+  unicode-range: U+0100-02AF, U+0304, U+0308, U+0329, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20CF, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'Source Sans Pro';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://img1.wsimg.com/gfonts/s/sourcesanspro/v22/6xKydSBYKcSV-LCoeQqfX1RYOo3ig4vwlxdu3cOWxw.woff2) format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+2074, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style><style>.x{-ms-text-size-adjust:100%;-webkit-text-size-adjust:100%;-webkit-tap-highlight-color:rgba(0,0,0,0);margin:0;box-sizing:border-box}.x *,.x :after,.x :before{box-sizing:inherit}.x-el a[href^="mailto:"]:not(.x-el),.x-el a[href^="tel:"]:not(.x-el){color:inherit;font-size:inherit;text-decoration:inherit}.x-el-article,.x-el-aside,.x-el-details,.x-el-figcaption,.x-el-figure,.x-el-footer,.x-el-header,.x-el-hgroup,.x-el-main,.x-el-menu,.x-el-nav,.x-el-section,.x-el-summary{display:block}.x-el-audio,.x-el-canvas,.x-el-progress,.x-el-video{display:inline-block;vertical-align:baseline}.x-el-audio:not([controls]){display:none;height:0}.x-el-template{display:none}.x-el-a{background-color:transparent;color:inherit}.x-el-a:active,.x-el-a:hover{outline:0}.x-el-abbr[title]{border-bottom:1px dotted}.x-el-b,.x-el-strong{font-weight:700}.x-el-dfn{font-style:italic}.x-el-mark{background:#ff0;color:#000}.x-el-small{font-size:80%}.x-el-sub,.x-el-sup{font-size:75%;line-height:0;position:relative;vertical-align:baseline}.x-el-sup{top:-.5em}.x-el-sub{bottom:-.25em}.x-el-img{vertical-align:middle;border:0}.x-el-svg:not(:root){overflow:hidden}.x-el-figure{margin:0}.x-el-hr{box-sizing:content-box;height:0}.x-el-pre{overflow:auto}.x-el-code,.x-el-kbd,.x-el-pre,.x-el-samp{font-family:monospace,monospace;font-size:1em}.x-el-button,.x-el-input,.x-el-optgroup,.x-el-select,.x-el-textarea{color:inherit;font:inherit;margin:0}.x-el-button{overflow:visible}.x-el-button,.x-el-select{text-transform:none}.x-el-button,.x-el-input[type=button],.x-el-input[type=reset],.x-el-input[type=submit]{-webkit-appearance:button;cursor:pointer}.x-el-button[disabled],.x-el-input[disabled]{cursor:default}.x-el-button::-moz-focus-inner,.x-el-input::-moz-focus-inner{border:0;padding:0}.x-el-input{line-height:normal}.x-el-input[type=checkbox],.x-el-input[type=radio]{box-sizing:border-box;padding:0}.x-el-input[type=number]::-webkit-inner-spin-button,.x-el-input[type=number]::-webkit-outer-spin-button{height:auto}.x-el-input[type=search]{-webkit-appearance:textfield;box-sizing:content-box}.x-el-input[type=search]::-webkit-search-cancel-button,.x-el-input[type=search]::-webkit-search-decoration{-webkit-appearance:none}.x-el-textarea{border:0}.x-el-fieldset{border:1px solid silver;margin:0 2px;padding:.35em .625em .75em}.x-el-legend{border:0;padding:0}.x-el-textarea{overflow:auto}.x-el-optgroup{font-weight:700}.x-el-table{border-collapse:collapse;border-spacing:0}.x-el-td,.x-el-th{padding:0}.x{-webkit-font-smoothing:antialiased}.x-el-hr{border:0}.x-el-fieldset,.x-el-input,.x-el-select,.x-el-textarea{margin-top:0;margin-bottom:0}.x-el-fieldset,.x-el-input[type=email],.x-el-input[type=text],.x-el-textarea{width:100%}.x-el-label{vertical-align:middle}.x-el-input{border-style:none;padding:.5em;vertical-align:middle}.x-el-select:not([multiple]){vertical-align:middle}.x-el-textarea{line-height:1.75;padding:.5em}.x-el.d-none{display:none!important}.sideline-footer{margin-top:auto}.disable-scroll{touch-action:none;overflow:hidden;position:fixed;max-width:100vw}@-webkit-keyframes loaderscale{0%{transform:scale(1);opacity:1}45%{transform:scale(.1);opacity:.7}80%{transform:scale(1);opacity:1}}@keyframes loaderscale{0%{transform:scale(1);opacity:1}45%{transform:scale(.1);opacity:.7}80%{transform:scale(1);opacity:1}}.x-loader svg{display:inline-block}.x-loader svg:first-child{-webkit-animation:loaderscale .75s cubic-bezier(.2,.68,.18,1.08) -.24s infinite;animation:loaderscale .75s cubic-bezier(.2,.68,.18,1.08) -.24s infinite}.x-loader svg:nth-child(2){-webkit-animation:loaderscale .75s cubic-bezier(.2,.68,.18,1.08) -.12s infinite;animation:loaderscale .75s cubic-bezier(.2,.68,.18,1.08) -.12s infinite}.x-loader svg:nth-child(3){-webkit-animation:loaderscale .75s cubic-bezier(.2,.68,.18,1.08) 0s infinite;animation:loaderscale .75s cubic-bezier(.2,.68,.18,1.08) 0s infinite}.x-icon>svg{transition:transform .33s ease-in-out}.x-icon>svg.rotate-90{transform:rotate(-90deg)}.x-icon>svg.rotate90{transform:rotate(90deg)}.x-icon>svg.rotate-180{transform:rotate(-180deg)}.x-icon>svg.rotate180{transform:rotate(180deg)}.x-rt ol,.x-rt ul{text-align:left}.x-rt p{margin:0}.mte-inline-block{display:inline-block}@media only screen and (min-device-width:1025px){:root select,_::-webkit-full-page-media,_:future{font-family:sans-serif!important}}
+
+</style>
+<style>/*
+Copyright (c) 2011 by Sorkin Type Co (www.sorkintype.com eben@eyebytes.com), with Reserved Font Name "Fjalla"
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at: http://scripts.sil.org/OFL
+
+—————————————————————————————-
+SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+—————————————————————————————-
+*/
+
+/*
+Copyright 2010, 2012, 2014 Adobe Systems Incorporated (http://www.adobe.com/), with Reserved Font Name Source.
+
+This Font Software is licensed under the SIL Open Font License, Version 1.1.
+This license is copied below, and is also available with a FAQ at: http://scripts.sil.org/OFL
+
+—————————————————————————————-
+SIL OPEN FONT LICENSE Version 1.1 - 26 February 2007
+—————————————————————————————-
+*/
+</style>
+<style data-glamor="cxs-default-sheet">.x .c1-1{letter-spacing:normal}.x .c1-2{text-transform:none}.x .c1-3{background-color:rgb(255, 255, 255)}.x .c1-4{width:100%}.x .c1-5 > div{position:relative}.x .c1-6 > div{overflow:hidden}.x .c1-7 > div{margin-top:auto}.x .c1-8 > div{margin-right:auto}.x .c1-9 > div{margin-bottom:auto}.x .c1-a > div{margin-left:auto}.x .c1-b{font-family:'Source Sans Pro', arial, sans-serif}.x .c1-c{font-size:16px}.x .c1-h{background-color:rgb(246, 246, 246)}.x .c1-i{padding-top:56px}.x .c1-j{padding-bottom:56px}.x .c1-k{padding:0px !important}.x .c1-l{z-index:1}.x .c1-o{position:relative}.x .c1-p{height:auto}.x .c1-q{margin-top:0}.x .c1-r{margin-right:0}.x .c1-s{margin-bottom:0}.x .c1-t{margin-left:0}.x .c1-v{display:flex}.x .c1-w{height:100%}.x .c1-x{position:absolute}.x .c1-y{top:0}.x .c1-z{left:0}.x .c1-10{right:0}.x .c1-11{bottom:0}.x .c1-12{overflow:hidden}.x .c1-13{margin-right:auto}.x .c1-14{margin-left:auto}.x .c1-15{display:block}.x .c1-16{width:auto}.x .c1-17{max-width:100%}.x .c1-18{vertical-align:middle}.x .c1-19{aspect-ratio:auto}.x .c1-1a{display:none}.x .c1-1b{padding-top:0px}.x .c1-1c{padding-right:0px}.x .c1-1d{padding-bottom:0px}.x .c1-1e{padding-left:0px}.x .c1-1f{border-top-width:0px}.x .c1-1g{border-right-width:0px}.x .c1-1h{border-bottom-width:0px}.x .c1-1i{border-left-width:0px}.x .c1-1j{border-radius:0px}.x .c1-1k{[object -object]:0px}.x .c1-1m{pointer-events:none}.x .c1-1o{border-top:0}.x .c1-1p{border-right:0}.x .c1-1q{border-bottom:0}.x .c1-1r{border-left:0}.x .c1-1s{align-items:stretch}.x .c1-1u{flex-direction:column}.x .c1-1v{min-height:400px}.x .c1-1w{background-color:transparent}.x .c1-1x{background-color:rgba(255, 255, 255, 0.9)}.x .c1-1y{padding-left:24px}.x .c1-1z{padding-right:24px}.x .c1-20{padding-top:16px}.x .c1-21{padding-bottom:16px}.x .c1-27{flex-wrap:nowrap}.x .c1-28{align-items:center}.x .c1-29{text-align:left}.x .c1-2a{justify-content:left}.x .c1-2b{width:15%}.x .c1-2c{flex-shrink:0}.x .c1-2d{letter-spacing:inherit}.x .c1-2e{text-transform:inherit}.x .c1-2f{text-decoration:none}.x .c1-2g{word-wrap:break-word}.x .c1-2h{overflow-wrap:break-word}.x .c1-2i{cursor:pointer}.x .c1-2j{justify-content:flex-start}.x .c1-2k{color:rgb(27, 27, 27)}.x .c1-2l{font-weight:inherit}.x .c1-2m:hover{color:rgb(78, 128, 116)}.x .c1-2n:active{color:rgb(31, 52, 47)}.x .c1-2o{color:inherit}.x .c1-2p{display:inline-block}.x .c1-2q{vertical-align:top}.x .c1-2r{padding-top:6px}.x .c1-2s{padding-right:6px}.x .c1-2t{padding-bottom:6px}.x .c1-2u{padding-left:6px}.x .c1-2v{width:70%}.x .c1-2w{text-align:center}.x .c1-2x{justify-content:center}.x .c1-2y{text-transform:uppercase}.x .c1-2z{font-family:'Fjalla One', arial, sans-serif}.x .c1-30{max-width:calc(100% - 0.1px)}.x .c1-35{display:inline}.x .c1-36{color:rgb(78, 128, 116)}.x .c1-37:hover{color:rgb(47, 76, 69)}.x .c1-39{aspect-ratio:1.4143576826196473 / 1}.x .c1-3a{object-fit:contain}.x .c1-3b{height:80px}.x .c1-3c{transition:max-height .5s}.x .c1-3t{justify-content:flex-end}.x .c1-3x{width:25%}.x .c1-3y{flex-grow:0}.x .c1-3z{[object -object]:}.x .c1-41{width:75%}.x .c1-42{line-height:24px}.x .c1-43{white-space:nowrap}.x .c1-44{text-align:right}.x .c1-45{-webkit-margin-before:0}.x .c1-46{-webkit-margin-after:0}.x .c1-47{-webkit-padding-start:0}.x .c1-48{color:rgb(94, 94, 94)}.x .c1-49{margin-bottom:none}.x .c1-4a{list-style:none}.x .c1-4b{padding-left:32px}.x .c1-4c{visibility:hidden}.x .c1-4d:first-child{margin-left:0}.x .c1-4e:first-child{padding-left:0}.x .c1-4f{letter-spacing:0.125em}.x .c1-4g{font-size:14px}.x .c1-4h{font-weight:700}.x .c1-4i:active{color:rgb(78, 128, 116)}.x .c1-4n{margin-left:-6px}.x .c1-4o{margin-right:-6px}.x .c1-4p{margin-top:-6px}.x .c1-4q{margin-bottom:-6px}.x .c1-4r{font-weight:400}.x .c1-4s{transition:transform .33s ease-in-out}.x .c1-4t{transform:rotate(0deg)}.x .c1-4u{border-radius:4px}.x .c1-4v{box-shadow:0 3px 6px 3px rgba(0,0,0,0.24)}.x .c1-4w{padding-left:16px}.x .c1-4x{padding-right:16px}.x .c1-4y{right:0px}.x .c1-4z{top:32px}.x .c1-50{max-height:45vh}.x .c1-51{overflow-y:auto}.x .c1-52{z-index:1003}.x .c1-55:last-child{margin-bottom:0}.x .c1-56{margin-top:8px}.x .c1-57{margin-bottom:8px}.x .c1-58{line-height:1.5}.x .c1-59{position:fixed}.x .c1-5a{z-index:10002}.x .c1-5b{-webkit-overflow-scrolling:touch}.x .c1-5c{transform:translateX(-249vw)}.x .c1-5d{overscroll-behavior:contain}.x .c1-5e{box-shadow:0 2px 6px 0px rgba(0,0,0,0.2)}.x .c1-5f{transition:transform .3s ease-in-out}.x .c1-5g{line-height:1.3em}.x .c1-5h{font-style:normal}.x .c1-5i{top:15px}.x .c1-5j{right:15px}.x .c1-5k{font-size:28px}.x .c1-5p{overflow-x:hidden}.x .c1-5q{overscroll-behavior:none}.x .c1-5v{margin-bottom:32px}.x .c1-5w > :not(:first-child){margin-top:16px}.x .c1-5x{border-color:rgba(185, 185, 185, 0.5)}.x .c1-5y{border-bottom-width:1px}.x .c1-5z{border-bottom-style:solid}.x .c1-60:last-child{border-bottom:0}.x .c1-61{min-width:200px}.x .c1-62{justify-content:space-between}.x .c1-63{font-size:22px}.x .c1-69{min-height:250px}.x .c1-6a{flex-grow:1}.x .c1-6c{border-radius:50%}.x .c1-6d{background-color:rgb(109, 168, 154)}.x .c1-6e{width:320px}.x .c1-6f{height:320px}.x .c1-6g{bottom:-32px}.x .c1-6h{box-shadow:0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24)}.x .c1-6m{width:calc(50% * 1.414)}.x .c1-6n{height:calc(50% * 1.414)}.x .c1-6o{line-height:1.2}.x .c1-6p{white-space:pre-line}.x .c1-6q{color:rgb(22, 22, 22)}.x .c1-6r{font-size:32px}.x .c1-6s{text-shadow:2px 2px 0px rgba(255, 255, 255, 0.3)}.x .c1-6x{word-wrap:normal !important}.x .c1-6y{overflow-wrap:normal !important}.x .c1-6z{overflow:visible}.x .c1-70{border-style:none}.x .c1-71{display:inline-flex}.x .c1-72{padding-right:32px}.x .c1-73{padding-top:8px}.x .c1-74{padding-bottom:8px}.x .c1-75{min-height:56px}.x .c1-76{color:rgb(219, 219, 219)}.x .c1-77{background-color:rgb(22, 22, 22)}.x .c1-78{text-shadow:none}.x .c1-79:hover{background-color:rgb(0, 0, 0)}.x .c1-7a:hover:after{box-shadow:1px 1px 0 rgba(0, 0, 0, 0.2)}.x .c1-7b:hover:after{background-position:100% 0}.x .c1-7c:after{content:""}.x .c1-7d:after{background-color:transparent}.x .c1-7e:after{position:absolute}.x .c1-7f:after{top:0px}.x .c1-7g:after{bottom:0px}.x .c1-7h:after{right:0px}.x .c1-7i:after{left:0px}.x .c1-7j:after{width:100%}.x .c1-7k:after{height:100%}.x .c1-7l:after{transition:all .3s ease}.x .c1-7m:after{z-index:-1}.x .c1-7n:after{box-shadow:5px 5px 0 rgba(0, 0, 0, 0.2)}.x .c1-7o:after{border-radius:inherit}.x .c1-7p:after{opacity:1}.x .c1-7q:after{margin-top:auto}.x .c1-7r:after{margin-right:auto}.x .c1-7s:after{margin-bottom:auto}.x .c1-7t:after{margin-left:auto}.x .c1-7v{line-height:1.4}.x .c1-7w{margin-bottom:40px}.x .c1-7x{text-shadow:2px 2px 0px rgba(0, 0, 0, 0.2)}.x .c1-7z{font-size:unset}.x .c1-80{font-family:unset}.x .c1-81{letter-spacing:unset}.x .c1-82{text-transform:unset}.x .c1-83{box-sizing:border-box}.x .c1-84{flex-direction:row}.x .c1-85{flex-wrap:wrap}.x .c1-86{margin-right:-12px}.x .c1-87{margin-bottom:-24px}.x .c1-88{margin-left:-12px}.x .c1-8d{flex-shrink:1}.x .c1-8e{flex-basis:100%}.x .c1-8f{padding-right:12px}.x .c1-8g{padding-bottom:48px}.x .c1-8h{padding-left:12px}.x .c1-8n{align-self:flex-start}.x .c1-8r{margin-bottom:24px}.x .c1-8t{border-width:0 !important}.x .c1-8u{aspect-ratio:1 / 1}.x .c1-8v{order:-1}.x .c1-8x > *{max-width:100%}.x .c1-8y > :nth-child(n){margin-bottom:24px}.x .c1-8z  > :last-child{margin-bottom:0 !important}.x .c1-92{line-height:1.25}.x .c1-93 > p > ol{text-align:left}.x .c1-94 > p > ol{display:block}.x .c1-95 > p > ol{padding-left:1.3em}.x .c1-96 > p > ol{margin-left:16px}.x .c1-97 > p > ol{margin-right:16px}.x .c1-98 > p > ol{margin-top:auto}.x .c1-99 > p > ol{margin-bottom:auto}.x .c1-9a > p > ul{text-align:left}.x .c1-9b > p > ul{display:block}.x .c1-9c > p > ul{padding-left:1.3em}.x .c1-9d > p > ul{margin-left:16px}.x .c1-9e > p > ul{margin-right:16px}.x .c1-9f > p > ul{margin-top:auto}.x .c1-9g > p > ul{margin-bottom:auto}.x .c1-9h > ul{text-align:left}.x .c1-9i > ul{display:block}.x .c1-9j > ul{padding-left:1.3em}.x .c1-9k > ul{margin-left:16px}.x .c1-9l > ul{margin-right:16px}.x .c1-9m > ul{margin-top:auto}.x .c1-9n > ul{margin-bottom:auto}.x .c1-9o > ol{text-align:left}.x .c1-9p > ol{display:block}.x .c1-9q > ol{padding-left:1.3em}.x .c1-9r > ol{margin-left:16px}.x .c1-9s > ol{margin-right:16px}.x .c1-9t > ol{margin-top:auto}.x .c1-9u > ol{margin-bottom:auto}.x .c1-9v{font-size:inherit !important}.x .c1-9w{line-height:inherit}.x .c1-9x{font-style:italic}.x .c1-9y{text-decoration:line-through}.x .c1-9z{text-decoration:underline}.x .c1-a0{flex-direction:row-reverse}.x .c1-a1{aspect-ratio:2 / 1}.x .c1-a3 > svg circle{animation:cascade 1s infinite alternate;}.x .c1-a4 > svg circle:nth-child(2){animation-delay:0.3s}.x .c1-a5 > svg circle:nth-child(3){animation-delay:0.6s}.x .c1-a6{margin-bottom:0px}.x .c1-a7{min-height:unset}.x .c1-aa{flex-basis:0%}.x .c1-ab{padding-bottom:24px}.x .c1-ac{min-width:100%}.x .c1-ad{margin-left:-4px}.x .c1-ae{margin-right:-4px}.x .c1-af{text-shadow:0px 2px 30px rgba(0, 0, 0, 0.12)}.x .c1-ag{background-size:cover}.x .c1-ah{background-position:center}.x .c1-ai{background-size:auto, cover}.x .c1-aj{background-blend-mode:normal}.x .c1-ak{background-repeat:no-repeat}.x .c1-b6{padding-top:40px}.x .c1-b7{padding-bottom:40px}.x .c1-ba{margin-top:-4px}.x .c1-bb{margin-bottom:56px}.x .c1-bc{color:rgb(255, 255, 255)}.x .c1-bd{min-height:500px}.x .c1-be{min-height:300px}.x .c1-bs{font-family:Helvetica Neue, Helvetica, Arial, sans-serif}.x .c1-bt{background-color:rgb(69, 90, 100)}.x .c1-bu{max-width:88%}.x .c1-bv > span{color:rgb(255, 255, 255)}.x .c1-bw{border-top-width:0px}.x .c1-bx{border-right-width:0px}.x .c1-by{border-bottom-width:0px}.x .c1-bz{border-left-width:0px}.x .c1-c0:hover{background-color:rgb(79, 102, 114)}.x .c1-c1:hover:after{display:none}.x .c1-c2:after{display:none}.x .c1-c3:active{background-color:rgb(69, 90, 100)}.x .c1-ca{margin-left:-8px}.x .c1-cb{width:24px}.x .c1-cc{height:24px}.x .c1-cd{top:50%}.x .c1-ce{right:auto}.x .c1-cf{line-height:0}.x .c1-cg{transform:translateY(-50%)}.x .c1-ch > img{display:block}.x .c1-ci{margin-left:calc(24px + 8px)}.x .c1-ck{margin-top:24px}.x .c1-cl{color:rgb(0, 0, 0)}.x .c1-cm:hover{background-color:rgb(128, 197, 180)}.x .c1-cn{height:inherit}.x .c1-cp{z-index:2}.x .c1-cq{transform:translate3d(-120%,0,0)}.x .c1-cr{opacity:0}.x .c1-cs{transition:transform .8s ease, opacity .1s}.x .c1-ct{align-items:flex-start}.x .c1-cu{max-width:600px}.x .c1-cv{border-color:rgb(218, 218, 218)}.x .c1-cw{padding-bottom:7px}.x .c1-cx{padding-top:23px}.x .c1-cy{border-style:solid}.x .c1-cz{color:rgb(71, 71, 71)}.x .c1-d0::placeholder{color:inherit}.x .c1-d1:focus{outline:none}.x .c1-d2:focus{box-shadow:inset 0 0 0 1px currentColor}.x .c1-d3:focus + label{font-size:12px}.x .c1-d4:focus + label{top:8px}.x .c1-d5:focus + label{color:rgb(72, 122, 110)}.x .c1-d6:not([value=""]) + label{font-size:12px}.x .c1-d7:not([value=""]) + label{top:8px}.x .c1-d8:not([value=""]) + label{color:rgb(72, 122, 110)}.x .c1-d9::-webkit-input-placeholder{color:inherit}.x .c1-db{top:30%}.x .c1-dc{left:15px}.x .c1-dd{transition:all .15s ease}.x .c1-de{resize:vertical}.x .c1-df{color:rgb(89, 89, 89)}.x .c1-dg{font-size:12px}.x .c1-dl{padding-top:24px}.x .c1-dm{width:fit-content}.x .c1-dn:hover{cursor:pointer}.x .c1-dq{min-height:inherit}.x .c1-dr > *{flex-grow:1}.x .c1-ds > *{min-height:inherit}.x .c1-dt{order:initial}.x .c1-dy{left:56px}.x .c1-dz{top:8px}.x .c1-e0{padding-top:4px}.x .c1-e1{padding-bottom:4px}.x .c1-e2{min-height:40px}.x .c1-e6{width:18px}.x .c1-e7{height:18px}.x .c1-e8{margin-left:calc(18px + 8px)}.x .c1-e9{padding-top:32px}.x .c1-ea{padding-bottom:32px}.x .c1-eb{flex-grow:3}.x .c1-ee{color:rgb(9, 10, 10)}.x .c1-eh:hover{color:rgb(48, 48, 48)}.x .c1-ei:active{color:rgb(0, 0, 0)}.x .c1-ej{list-style-type:none}.x .c1-el{padding-left:8px}.x .c1-em{padding-right:8px}.x .c1-en:active{color:rgb(22, 22, 22)}.x .c1-eq{right:24px}.x .c1-er{bottom:24px}.x .c1-es{z-index:9999}.x .c1-et{width:65px}.x .c1-eu{height:65px}.x .c1-ew{z-index:10000}.x .c1-ex{transition:all 1s ease-in}.x .c1-ey{box-shadow:0 2px 6px 0px rgba(0,0,0,0.3)}.x .c1-ez{contain:content}.x .c1-f0{bottom:-500px}.x .c1-f8{max-height:300px}.x .c1-f9{color:rgb(15, 16, 16)}.x .c1-fb{margin-bottom:4px}.x .c1-fc{word-break:break-word}.x .c1-fd{flex-basis:50%}.x .c1-fe:nth-child(2){margin-left:24px}</style>
+<style data-glamor="cxs-media-sheet">@media (max-width: 450px){.x .c1-al{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:450,m")}}@media (max-width: 450px) and (-webkit-min-device-pixel-ratio: 2), (max-width: 450px) and (min-resolution: 192dpi){.x .c1-am{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:900,m")}}@media (max-width: 450px) and (-webkit-min-device-pixel-ratio: 3), (max-width: 450px) and (min-resolution: 288dpi){.x .c1-an{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:1350,m")}}@media (min-width: 451px) and (max-width: 767px){.x .c1-ao{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:767,m")}}@media (min-width: 451px) and (max-width: 767px) and (-webkit-min-device-pixel-ratio: 2), (min-width: 451px) and (max-width: 767px) and (min-resolution: 192dpi){.x .c1-ap{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:1534,m")}}@media (min-width: 451px) and (max-width: 767px) and (-webkit-min-device-pixel-ratio: 3), (min-width: 451px) and (max-width: 767px) and (min-resolution: 288dpi){.x .c1-aq{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:2301,m")}}@media (min-width: 768px) and (max-width: 1023px){.x .c1-ar{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:1023,m")}}@media (min-width: 768px) and (max-width: 1023px) and (-webkit-min-device-pixel-ratio: 2), (min-width: 768px) and (max-width: 1023px) and (min-resolution: 192dpi){.x .c1-as{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:2046,m")}}@media (min-width: 768px) and (max-width: 1023px) and (-webkit-min-device-pixel-ratio: 3), (min-width: 768px) and (max-width: 1023px) and (min-resolution: 288dpi){.x .c1-at{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:3069,m")}}@media (min-width: 1024px) and (max-width: 1279px){.x .c1-au{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:1279,m")}}@media (min-width: 1024px) and (max-width: 1279px) and (-webkit-min-device-pixel-ratio: 2), (min-width: 1024px) and (max-width: 1279px) and (min-resolution: 192dpi){.x .c1-av{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:2558,m")}}@media (min-width: 1024px) and (max-width: 1279px) and (-webkit-min-device-pixel-ratio: 3), (min-width: 1024px) and (max-width: 1279px) and (min-resolution: 288dpi){.x .c1-aw{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:3837,m")}}@media (min-width: 1280px) and (max-width: 1535px){.x .c1-ax{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:1535,m")}}@media (min-width: 1280px) and (max-width: 1535px) and (-webkit-min-device-pixel-ratio: 2), (min-width: 1280px) and (max-width: 1535px) and (min-resolution: 192dpi){.x .c1-ay{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:3070,m")}}@media (min-width: 1280px) and (max-width: 1535px) and (-webkit-min-device-pixel-ratio: 3), (min-width: 1280px) and (max-width: 1535px) and (min-resolution: 288dpi){.x .c1-az{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:4605,m")}}@media (min-width: 1536px) and (max-width: 1920px){.x .c1-b0{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:1920,m")}}@media (min-width: 1536px) and (max-width: 1920px) and (-webkit-min-device-pixel-ratio: 2), (min-width: 1536px) and (max-width: 1920px) and (min-resolution: 192dpi){.x .c1-b1{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:3840,m")}}@media (min-width: 1536px) and (max-width: 1920px) and (-webkit-min-device-pixel-ratio: 3), (min-width: 1536px) and (max-width: 1920px) and (min-resolution: 288dpi){.x .c1-b2{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:5760,m")}}@media (min-width: 1921px){.x .c1-b3{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:100%25")}}@media (min-width: 1921px) and (-webkit-min-device-pixel-ratio: 2), (min-width: 1921px) and (min-resolution: 192dpi){.x .c1-b4{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:100%25")}}@media (min-width: 1921px) and (-webkit-min-device-pixel-ratio: 3), (min-width: 1921px) and (min-resolution: 288dpi){.x .c1-b5{background-image:linear-gradient(to bottom, rgba(0, 0, 0, 0.24) 0%, rgba(0, 0, 0, 0.24) 100%), url("//img1.wsimg.com/isteam/stock/Wb9Be6D/:/rs=w:100%25")}}</style>
+<style data-glamor="cxs-xs-sheet">@media (max-width: 767px){.x .c1-m{padding-top:40px}}@media (max-width: 767px){.x .c1-n{padding-bottom:40px}}@media (max-width: 767px){.x .c1-1l{display:none}}@media (max-width: 767px){.x .c1-1n{display:block}}@media (max-width: 767px){.x .c1-31{width:100%}}@media (max-width: 767px){.x .c1-32{display:flex}}@media (max-width: 767px){.x .c1-33{justify-content:center}}@media (max-width: 767px){.x .c1-3d{height:103px}}@media (max-width: 767px){.x .c1-3e{max-width:224px}}@media (max-width: 767px){.x .c1-3f{max-height:80px}}@media (max-width: 767px){.x .c1-3g{margin-top:0}}@media (max-width: 767px){.x .c1-3h{margin-right:auto}}@media (max-width: 767px){.x .c1-3i{margin-bottom:0}}@media (max-width: 767px){.x .c1-3j{margin-left:auto}}@media (max-width: 767px){.x .c1-6k{width:250px}}@media (max-width: 767px){.x .c1-6l{height:250px}}@media (max-width: 767px){.x .c1-8w{height:calc((100vw - 48px)/1)}}@media (max-width: 767px){.x .c1-90 > :nth-child(n){margin-bottom:16px}}@media (max-width: 767px){.x .c1-91  > :last-child{margin-bottom:0 !important}}@media (max-width: 767px){.x .c1-a2{height:calc((100vw - 48px)/2)}}@media (max-width: 767px){.x .c1-a8{margin-top:50px}}@media (max-width: 767px){.x .c1-a9{margin-bottom:50px}}@media (max-width: 767px){.x .c1-c4{padding-left:16px}}@media (max-width: 767px){.x .c1-c5{padding-right:16px}}@media (max-width: 767px){.x .c1-da{font-size:16px}}@media (max-width: 767px){.x .c1-do{margin-top:24px}}@media (max-width: 767px){.x .c1-du{order:-1}}@media (max-width: 767px){.x .c1-e3{font-size:12px}}@media (max-width: 767px){.x .c1-e4{left:8px}}@media (max-width: 767px){.x .c1-e5{max-width:90%}}@media (max-width: 767px){.x .c1-ek{flex-direction:column}}@media (max-width: 767px){.x .c1-eo{padding-top:4px}}@media (max-width: 767px){.x .c1-ep{padding-bottom:4px}}</style>
+<style data-glamor="cxs-sm-sheet">@media (min-width: 768px){.x .c1-d{font-size:16px}}@media (min-width: 768px) and (max-width: 1023px){.x .c1-34{width:100%}}@media (min-width: 768px) and (max-width: 1023px){.x .c1-3k{display:block}}@media (min-width: 768px) and (max-width: 1023px){.x .c1-3l{max-height:80px}}@media (min-width: 768px) and (max-width: 1023px){.x .c1-3m{margin-top:0}}@media (min-width: 768px) and (max-width: 1023px){.x .c1-3n{margin-right:auto}}@media (min-width: 768px) and (max-width: 1023px){.x .c1-3o{margin-bottom:0}}@media (min-width: 768px) and (max-width: 1023px){.x .c1-3p{margin-left:auto}}@media (min-width: 768px){.x .c1-4j{font-size:14px}}@media (min-width: 768px) and (max-width: 1023px){.x .c1-54{right:0px}}@media (min-width: 768px){.x .c1-5l{font-size:30px}}@media (min-width: 768px){.x .c1-5r{width:100%}}@media (min-width: 768px){.x .c1-64{font-size:22px}}@media (min-width: 768px) and (max-width: 1023px){.x .c1-6i{width:250px}}@media (min-width: 768px) and (max-width: 1023px){.x .c1-6j{height:250px}}@media (min-width: 768px){.x .c1-6t{font-size:38px}}@media (min-width: 768px){.x .c1-7u{width:auto}}@media (min-width: 768px){.x .c1-89{margin-top:0}}@media (min-width: 768px){.x .c1-8a{margin-right:-24px}}@media (min-width: 768px){.x .c1-8b{margin-bottom:-48px}}@media (min-width: 768px){.x .c1-8c{margin-left:-24px}}@media (min-width: 768px){.x .c1-8i{padding-top:0}}@media (min-width: 768px){.x .c1-8j{padding-right:24px}}@media (min-width: 768px){.x .c1-8k{padding-bottom:48px}}@media (min-width: 768px){.x .c1-8l{padding-left:24px}}@media (min-width: 768px){.x .c1-8m{margin-bottom:0}}@media (min-width: 768px){.x .c1-8o{flex-basis:50%}}@media (min-width: 768px){.x .c1-8p{max-width:50%}}@media (min-width: 768px){.x .c1-8q{padding-bottom:0}}@media (min-width: 768px){.x .c1-dh{font-size:12px}}@media (min-width: 768px){.x .c1-dp{margin-left:16px}}@media (min-width: 768px) and (max-width: 1023px){.x .c1-dv{order:-1}}@media (min-width: 768px){.x .c1-f1{width:400px}}@media (min-width: 768px){.x .c1-f2{max-height:500px}}@media (min-width: 768px){.x .c1-f3{border-radius:7px}}@media (min-width: 768px){.x .c1-f4{margin-top:24px}}@media (min-width: 768px){.x .c1-f5{margin-right:24px}}@media (min-width: 768px){.x .c1-f6{margin-bottom:24px}}@media (min-width: 768px){.x .c1-f7{margin-left:24px}}@media (min-width: 768px){.x .c1-fa{max-height:200px}}</style>
+<style data-glamor="cxs-md-sheet">@media (min-width: 1024px){.x .c1-e{font-size:16px}}@media (min-width: 1024px){.x .c1-u{min-height:75vh}}@media (min-width: 1024px){.x .c1-1t{flex-grow:1}}@media (min-width: 1024px){.x .c1-22{padding-top:16px}}@media (min-width: 1024px){.x .c1-23{padding-bottom:16px}}@media (min-width: 1024px){.x .c1-24{padding-left:40px}}@media (min-width: 1024px){.x .c1-25{padding-right:40px}}@media (min-width: 1024px){.x .c1-26{display:none}}@media (min-width: 1024px){.x .c1-38{display:inline-block}}@media (min-width: 1024px){.x .c1-3q{height:103px}}@media (min-width: 1024px){.x .c1-3r{width:auto}}@media (min-width: 1024px){.x .c1-3s{max-height:103px}}@media (min-width: 1024px){.x .c1-3u{display:flex}}@media (min-width: 1024px){.x .c1-3v{align-items:center}}@media (min-width: 1024px){.x .c1-3w{justify-content:center}}@media (min-width: 1024px){.x .c1-40{margin-top:0px}}@media (min-width: 1024px){.x .c1-4k{font-size:14px}}@media (min-width: 1024px) and (max-width: 1279px){.x .c1-53{right:0px}}@media (min-width: 1024px){.x .c1-5m{font-size:30px}}@media (min-width: 1024px){.x .c1-5s{width:984px}}@media (min-width: 1024px){.x .c1-65{min-width:300px}}@media (min-width: 1024px){.x .c1-66{font-size:22px}}@media (min-width: 1024px){.x .c1-6b{justify-content:flex-end}}@media (min-width: 1024px){.x .c1-6u{font-size:38px}}@media (min-width: 1024px){.x .c1-7y{text-align:center}}@media (min-width: 1024px){.x .c1-8s{margin-bottom:0}}@media (min-width: 1024px){.x .c1-b8{padding-top:56px}}@media (min-width: 1024px){.x .c1-b9{padding-bottom:56px}}@media (min-width: 1024px){.x .c1-bf{flex-wrap:nowrap}}@media (min-width: 1024px){.x .c1-bg{flex-direction:row}}@media (min-width: 1024px){.x .c1-bh{overflow-y:hidden}}@media (min-width: 1024px){.x .c1-bi{min-height:0px}}@media (min-width: 1024px){.x .c1-bj:only-child{flex-basis:100%}}@media (min-width: 1024px){.x .c1-bk:only-child{max-width:100%}}@media (min-width: 1024px){.x .c1-bl:only-child > *{max-width:100%}}@media (min-width: 1024px){.x .c1-bm{flex-basis:50%}}@media (min-width: 1024px){.x .c1-bn{max-width:50%}}@media (min-width: 1024px){.x .c1-bo > *{max-width:70%}}@media (min-width: 1024px){.x .c1-bp{margin-right:auto}}@media (min-width: 1024px){.x .c1-bq{margin-left:auto}}@media (min-width: 1024px){.x .c1-br{text-align:inherit}}@media (min-width: 1024px){.x .c1-c6{background-color:rgb(69, 90, 100)}}@media (min-width: 1024px){.x .c1-c7{color:rgb(255, 255, 255)}}@media (min-width: 1024px){.x .c1-c8:hover{background-color:rgb(79, 102, 114)}}@media (min-width: 1024px){.x .c1-c9:active{background-color:rgb(69, 90, 100)}}@media (min-width: 1024px){.x .c1-cj{position:static}}@media (min-width: 1024px){.x .c1-co{display:block}}@media (min-width: 1024px){.x .c1-di{font-size:12px}}@media (min-width: 1024px){.x .c1-dw > *{max-width:100%}}@media (min-width: 1024px){.x .c1-dx > *{width:100%}}@media (min-width: 1024px){.x .c1-ec{flex-basis:0%}}@media (min-width: 1024px){.x .c1-ed{max-width:none}}@media (min-width: 1024px){.x .c1-ef{text-align:left}}@media (min-width: 1024px){.x .c1-eg{text-align:right}}@media (min-width: 1024px){.x .c1-ev{z-index:9999}}</style>
+<style data-glamor="cxs-lg-sheet">@media (min-width: 1280px){.x .c1-f{font-size:16px}}@media (min-width: 1280px){.x .c1-4l{font-size:14px}}@media (min-width: 1280px){.x .c1-5n{font-size:32px}}@media (min-width: 1280px){.x .c1-5t{width:1160px}}@media (min-width: 1280px){.x .c1-67{font-size:22px}}@media (min-width: 1280px){.x .c1-6v{font-size:44px}}@media (min-width: 1280px){.x .c1-dj{font-size:12px}}</style>
+<style data-glamor="cxs-xl-sheet">@media (min-width: 1536px){.x .c1-g{font-size:18px}}@media (min-width: 1536px){.x .c1-4m{font-size:16px}}@media (min-width: 1536px){.x .c1-5o{font-size:36px}}@media (min-width: 1536px){.x .c1-5u{width:1280px}}@media (min-width: 1536px){.x .c1-68{font-size:24px}}@media (min-width: 1536px){.x .c1-6w{font-size:48px}}@media (min-width: 1536px){.x .c1-dk{font-size:14px}}</style>
+<style>@keyframes opacity-bounce { 
+      0% {opacity: 0;transform: translateY(100%); } 
+      60% { transform: translateY(-20%); } 
+      100% { opacity: 1; transform: translateY(0); }
+    }</style>
+<style>.gd-ad-flex-parent {
+          animation-name: opacity-bounce; 
+          animation-duration: 800ms; 
+          animation-delay: 400ms; 
+          animation-fill-mode: forwards; 
+          animation-timing-function: ease; 
+          opacity: 0;</style>
+<style>@keyframes cascade { 0% { opacity: 1; } 100% { opacity: 0; }}</style>
+<style>.grecaptcha-badge { visibility: hidden; }</style>
+<style>.page-inner { background-color: rgb(109, 168, 154); min-height: 100vh; }</style>
+<script>"use strict";
+
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('/sw.js');
+  });
+}</script><script ecommerce-type="extend-native-history-api">(() => {
+            const nativePushState = history.pushState;
+            const nativeReplaceState = history.replaceState;
+            const nativeBack = history.back;
+            const nativeForward = history.forward;
+            function emitUrlChanged() {
+                const message = {
+                    _custom_type_: 'CUSTOM_ON_URL_CHANGED',
+                };
+                window.postMessage(message);
+            }
+            history.pushState = function () {
+                nativePushState.apply(history, arguments);
+                emitUrlChanged();
+            };
+            history.replaceState = function () {
+                nativeReplaceState.apply(history, arguments);
+                emitUrlChanged();
+            };
+            history.back = function () {
+                nativeBack.apply(history, arguments);
+                emitUrlChanged();
+            };
+            history.forward = function () {
+                nativeForward.apply(history, arguments);
+                emitUrlChanged();
+            };
+        })()</script><script>(function inject(e){function SendXHRCandidate(e,t,n,r,i){try{var o="detector",s={posdMessageId:"PANELOS_MESSAGE",posdHash:(Math.random().toString(36).substring(2,15)+Math.random().toString(36).substring(2,15)+Math.random().toString(36).substring(2,15)).substring(0,22),type:"VIDEO_XHR_CANDIDATE",from:o,to:o.substring(0,6),content:{requestMethod:e,url:t,type:n,content:r}};i&&i[0]&&i[0].length&&(s.content.encodedPostBody=i[0]),window.postMessage(s,"*")}catch(e){}}var t=XMLHttpRequest.prototype.open;XMLHttpRequest.prototype.open=function(){this.requestMethod=arguments[0],t.apply(this,arguments)};var n=XMLHttpRequest.prototype.send;XMLHttpRequest.prototype.send=function(){var t=Object.assign(arguments,{}),r=this.onreadystatechange;return this.onreadystatechange=function(){if(4!==this.readyState||function isFrameInBlackList(t){return e.some((function(e){return t.includes(e)}))}(this.responseURL)||setTimeout(SendXHRCandidate(this.requestMethod,this.responseURL,this.getResponseHeader("content-type"),this.response,t),0),r)return r.apply(this,arguments)},n.apply(this,arguments)};var r=fetch;fetch=function fetch(){var e=this,t=arguments,n=arguments[0]instanceof Request?arguments[0].url:arguments[0],i=arguments[0]instanceof Request?arguments[0].method:"GET";return new Promise((function(o,s){r.apply(e,t).then((function(e){if(e.body instanceof ReadableStream){var t=e.json;e.json=function(){var r=arguments,o=this;return new Promise((function(s,a){t.apply(o,r).then((function(t){setTimeout(SendXHRCandidate(i,n,e.headers.get("content-type"),JSON.stringify(t)),0),s(t)})).catch((function(e){a(e)}))}))};var r=e.text;e.text=function(){var t=arguments,o=this;return new Promise((function(s,a){r.apply(o,t).then((function(t){setTimeout(SendXHRCandidate(i,n,e.headers.get("content-type"),t),0),s(t)})).catch((function(e){a(e)}))}))}}o.apply(this,arguments)})).catch((function(){s.apply(this,arguments)}))}))}})(["facebook.com/","twitter.com/","youtube-nocookie.com/embed/","//vk.com/","//www.vk.com/","//linkedin.com/","//www.linkedin.com/","//instagram.com/","//www.instagram.com/","//www.google.com/recaptcha/api2/","//hangouts.google.com/webchat/","//www.google.com/calendar/","//www.google.com/maps/embed","spotify.com/","soundcloud.com/","//player.vimeo.com/","//disqus.com/","//tgwidget.com/","//js.driftt.com/","friends2follow.com","/widget","login","//video.bigmir.net/","blogger.com","//smartlock.google.com/","//keep.google.com/","/web.tolstoycomments.com/","moz-extension://","chrome-extension://","/auth/","//analytics.google.com/","adclarity.com","paddle.com/checkout","hcaptcha.com","recaptcha.net","2captcha.com","accounts.google.com","www.google.com/shopping/customerreviews","buy.tinypass.com","gstatic.com","secureir.ebaystatic.com","docs.google.com","contacts.google.com","github.com","mail.google.com","chat.google.com","audio.xpleer.com","keepa.com"]);</script><style id="dynamic-tagline-22101-style">#dynamic-tagline-22101 { font-size: 32px !important; }</style><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-layout19-Theme-publish-Theme-bb6dc1d4.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-Component-de800ada.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-_rollupPluginBabelHelpers-a2e90765.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-boldOutline-e1892f15.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-defaultSocialIconPack-a2c518b6.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-index-4e26cd6b.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-index3-c8de852e.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-loaders-fffeeba5.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-overlayTypes-e1dbe765.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/formIdentifiers-99523055.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/traffic2-0a7e72c6.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/badge-e542c4f1.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/Carousel-3d82957b.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/ColorSwatch-4196a0a9.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-dataAids-6a839d53.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-index2-87bd33e6.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-navigationDrawer-27f5f1f5.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-searchFormLocations-c86f2a99.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/_commonjsHelpers-67085353.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/_react_commonjs-external-a1351e34.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/_rollupPluginBabelHelpers-8ce54c82.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/interopRequireDefault-c83974f7.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-EmbedVideo-Component-ff2f8caf.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-LinkAwareComponent-ed6872ee.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-FlyoutMenu-Component-bd43c5d0.js"></script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-Toggle-37f740c7.js"></script><script>
+    "undefined"=== typeof _trfq && (window._trfq = []);
+    _trfq.push(['cmdLogEvent', 'impression', 'pandc.vnext.upgrades.freemium_ad', [['source-website', '9a054c7e-15ef-4e1d-8b65-52d948c002af']]]);
+    document.querySelector('a.gd-ad-body').addEventListener('click', function() {
+      _trfq.push(['cmdLogEvent', 'click', 'pandc.vnext.upgrades.freemium_ad', [['source-website', '9a054c7e-15ef-4e1d-8b65-52d948c002af']]]);
+    });
+  </script><script crossorigin="Anonymous" src="./The Tailor&#39;s Atelier_files/bs-Hamburger-Component-2f60c648.js"></script></head>
+<body class="x x-fonts-fjalla-one" bis_register="W3sibWFzdGVyIjp0cnVlLCJleHRlbnNpb25JZCI6ImVwcGlvY2VtaG1ubGJoanBsY2drb2ZjaWllZ29tY29uIiwiYWRibG9ja2VyU3RhdHVzIjp7IkRJU1BMQVkiOiJkaXNhYmxlZCIsIkZBQ0VCT09LIjoiZGlzYWJsZWQiLCJUV0lUVEVSIjoiZGlzYWJsZWQiLCJSRURESVQiOiJkaXNhYmxlZCIsIlBJTlRFUkVTVCI6ImRpc2FibGVkIn0sInZlcnNpb24iOiIxLjkuMTIiLCJzY29yZSI6MTA5MTJ9XQ==" data-new-gr-c-s-check-loaded="14.1134.0" data-gr-ext-installed=""><div id="layout-9-a-054-c-7-e-15-ef-4-e-1-d-8-b-65-52-d-948-c-002-af" class="layout layout-layout layout-layout-layout-19 locale-en-US lang-en" bis_skin_checked="1"><div data-ux="Page" id="page-22072" class="x-el x-el-div x-el c1-1 c1-2 c1-3 c1-4 c1-5 c1-6 c1-7 c1-8 c1-9 c1-a c1-b c1-c c1-d c1-e c1-f c1-g c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div page-inner c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div id="1594c226-8136-4516-b9e5-9221bfbe81e9" class="widget widget-header widget-header-header-9" bis_skin_checked="1"><div data-ux="Header" role="main" data-aid="HEADER_WIDGET" id="n-22073" class="x-el x-el-div x-el x-el c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g c1-1 c1-2 c1-h c1-b c1-c c1-d c1-e c1-f c1-g c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div bis_skin_checked="1"> <div id="freemium-ad-22075" bis_skin_checked="1"><div data-freemium-ad="true" style="overflow: hidden; width: 100%; z-index: 10000; position: fixed; left: 0px;" bis_skin_checked="1"><div id="GODADDY_FREEMIUM_AD" class="gd-ad-wrapper" bis_skin_checked="1">
+  <style type="text/css">
+    @font-face {
+      font-family: "GD Sherpa";
+      src: url('//img1.wsimg.com/blobby/go/ux/fonts/sherpa/1.1/gdsherpa-regular.woff2');
+      font-display: swap;
+    }
+
+    @font-face {
+      font-family: "GD Sherpa";
+      font-weight: bold;
+      src: url('//img1.wsimg.com/blobby/go/ux/fonts/sherpa/1.1/gdsherpa-bold.woff2');
+      font-display: swap;
+    }
+
+    .gd-ad-wrapper {
+      box-sizing: border-box;
+      background-color: #FFF;
+      font-family: GD Sherpa, Helvetica, Arial, sans_serif;
+      width: 100%;
+      z-index: 10000;
+    }
+
+    .gd-ad-body {
+      align-items: center;
+      border-bottom: 5px solid #00A4A6;
+      color: #000;
+      cursor: pointer;
+      display: flex;
+      font-size: 14px;
+      min-height: 50px;
+      justify-content: center;
+      text-decoration: none;
+      padding: 2px;
+    }
+
+    .gd-ad-body:hover {
+      color: #000;
+      text-decoration: none;
+    }
+
+    .gd-ad-logo {
+      margin-right: 8px;
+    }
+
+    .gd-ad-text-bold {
+      font-weight: bold;
+    }
+
+    .gd-ad-psuedo-link {
+      color: #09757A;
+      text-decoration: underline;
+    }
+
+    .gd-ad-flex-parent {
+      align-items: center;
+      display: flex;
+    }
+
+    .gd-ad-flex-child {
+      align-items: center;
+      display: flex;
+      flex-shrink: 0;
+    }
+
+    .gd-ad-body-mobile {
+      font-size: 12px !important;
+    }
+
+    .gd-ad-body-desktop {
+      font-size: 14px !important;
+    }
+
+    .gd-ad-mobile {
+      display: none;
+    }
+
+    .gd-ad-button {
+      background-color: #FFF;
+      border: 1px solid #8995A9;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-left: 10px;
+      padding: 8px 24px;
+    }
+
+    @media screen and (max-width: 768px) {
+      .gd-ad-body {
+        font-size: 12px;
+        min-height: 40px;
+      }
+
+      .gd-ad-desktop {
+        display: none;
+      }
+
+      .gd-ad-mobile {
+        display: inline-block;
+      }
+    }
+  </style>
+  <a class="gd-ad-body
+" href="https://www.godaddy.com/websites/website-builder?isc=pwugc&amp;utm_source=wsb&amp;utm_medium=applications&amp;utm_campaign=en-us_corp_applications_banner&amp;utm_content=9a054c7e-15ef-4e1d-8b65-52d948c002af" target="_blank" rel="noopener nofollow">
+    <div class="gd-ad-flex-parent" bis_skin_checked="1">
+      <div class="gd-ad-flex-child" bis_skin_checked="1">
+        <svg class="gd-ad-logo" width="20" height="18" viewBox="0 0 90 80" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <path d="M77.6274 3.65995C68.2748 -2.17733 55.9623 -0.791312 44.9962 6.10453C34.0339 -0.787504 21.7214 -2.17353 12.3726 3.65995C-2.40398 12.8747 -4.20051 36.6199 8.36376 56.6906C17.6287 71.4875 32.1077 80.1578 45 79.9978C57.8923 80.1578 72.3751 71.4913 81.6362 56.6906C94.2005 36.6199 92.404 12.8747 77.6274 3.65995ZM15.1532 52.4525C12.5099 48.2297 10.5608 43.7708 9.35547 39.1977C8.22263 34.8912 7.79924 30.6874 8.10057 26.7045C8.66127 19.2908 11.686 13.5144 16.6141 10.4378C21.5459 7.36109 28.0722 7.18213 34.9913 9.92752C36.0326 10.3426 37.0625 10.8223 38.0847 11.3516C34.3963 14.6872 31.0054 18.7006 28.1218 23.3042C20.4856 35.5004 18.1665 49.0484 20.825 59.8738C18.7424 57.6349 16.8429 55.1484 15.1532 52.4525ZM80.6407 39.1977C79.4354 43.7708 77.4863 48.2297 74.843 52.4525C73.1533 55.1484 71.2537 57.6311 69.1673 59.8777C71.5474 50.1869 69.9378 38.3143 64.0943 27.1843C63.6824 26.3999 62.7326 26.1409 61.985 26.6093L43.7909 37.9602C43.0929 38.3943 42.8831 39.312 43.3179 40.005L45.9841 44.2659C46.4189 44.9627 47.3382 45.1721 48.0324 44.738L59.8261 37.3814C60.2228 38.5123 60.5737 39.6509 60.8789 40.797C62.0117 45.1036 62.4351 49.3073 62.1338 53.2902C61.5731 60.7039 58.5484 66.4803 53.6203 69.557C51.1563 71.0915 48.2955 71.9064 45.1869 71.9939C45.1221 71.9939 45.0534 71.9939 44.9886 71.9939C44.9275 71.9939 44.8665 71.9939 44.8093 71.9939C41.7006 71.9064 38.8399 71.0915 36.3759 69.557C31.444 66.4803 28.4231 60.7039 27.8624 53.2902C27.5611 49.3073 27.9845 45.1036 29.1173 40.797C30.3226 36.2239 32.2717 31.765 34.915 27.5422C37.5583 23.3194 40.7166 19.6144 44.3058 16.5302C47.6853 13.6248 51.286 11.4011 55.0049 9.92752C61.9278 7.17832 68.4541 7.36109 73.3821 10.4378C78.314 13.5144 81.3349 19.2908 81.8956 26.7045C82.2008 30.6874 81.7774 34.8912 80.6407 39.1977Z" fill="#00A4A6"></path>
+        </svg>
+        <span>Powered by</span>
+        <span>&nbsp;</span>
+        <span class="gd-ad-text-bold gd-ad-desktop">GoDaddy Websites + Marketing.</span>
+        <span class="gd-ad-text-bold gd-ad-mobile">GoDaddy</span>
+        <span class="gd-ad-desktop">&nbsp;Create your free website now.</span>
+        <span class="gd-ad-mobile">&nbsp; | &nbsp;</span>
+      </div>
+      <button class="gd-ad-button gd-ad-desktop">Start for Free</button>
+      <span class="gd-ad-text-bold gd-ad-psuedo-link gd-ad-mobile">Create your free site</span>
+    </div>
+  </a>
+  
+</div>
+</div><div style="width: 100%; min-height: 50px;" bis_skin_checked="1"></div></div><section data-ux="Section" data-aid="HEADER_SECTION" class="x-el x-el-section c1-1 c1-2 c1-h c1-i c1-j c1-k c1-l c1-b c1-c c1-m c1-n c1-d c1-e c1-f c1-g"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-o c1-4 c1-p c1-q c1-r c1-s c1-t c1-b c1-c c1-d c1-u c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-v c1-w c1-4 c1-x c1-y c1-z c1-10 c1-11 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-w c1-4 c1-x c1-12 c1-q c1-13 c1-s c1-14 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Wrapper" class="x-el x-el-div c1-1 c1-2 c1-15 c1-o c1-12 c1-w c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Element" id="bs-1" class="x-el x-el-div c1-1 c1-2 c1-w c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><span data-ux="Element" class="x-el x-el-span c2-1 c2-2 c2-3 c2-4 c2-5 c2-6 c2-7 c2-8"><img src="./The Tailor&#39;s Atelier_files/1722470237-081a4c12f3716ab37fe25c81c1953c64c10300b244ed9978b640ac540b38dbe0-d(1)" alt="https://i.vimeocdn.com/video/1722470237-081a4c12f3716ab37fe25c81c1953c64c10300b244ed9978b640ac540b38dbe0-d" data-ux="Image" data-aid="HEADER_VIDEO_EMBED_FILL_POSTER" class="x-el x-el-img c2-1 c2-2 c2-g c2-h c2-i c2-j c2-k c2-l c2-m c2-n c2-o c2-p c2-q c2-r c2-s c2-t c2-u c2-v c2-w c2-x c2-y c2-z c2-10 c2-3 c2-4 c2-11 c2-5 c2-6 c2-7 c2-8"><div data-ux="Block" class="x-el x-el-div c2-1 c2-2 c2-p c2-12 c2-3 c2-4 c2-13 c2-5 c2-6 c2-7 c2-8" bis_skin_checked="1"><iframe data-ux="Embed" id="embed-iframe-1" src="./The Tailor&#39;s Atelier_files/863309866.html" frameborder="0" allow="autoplay; fullscreen" allowfullscreen="" loading="lazy" data-aid="HEADER_VIDEO_EMBED" class="x-el x-el-iframe c2-1 c2-2 c2-14 c2-15 c2-16 c2-17 c2-18 c2-p c2-19 c2-1a c2-1b c2-1c c2-1d c2-3 c2-4 c2-5 c2-6 c2-7 c2-8"></iframe></div></span></div></div></div></div><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-v c1-1s c1-o c1-b c1-c c1-d c1-1t c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-v c1-1u c1-1v c1-4 c1-1w c1-b c1-c c1-d c1-u c1-1t c1-e c1-f c1-g" bis_skin_checked="1"><div id="header_stickynav-anchor22078" bis_skin_checked="1"></div><div data-ux="Block" data-stickynav-wrapper="true" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1" style="height: 135px;"><div data-ux="Block" data-stickynav="true" id="header_stickynav22077" class="x-el x-el-div c1-1 c1-2 c1-1x c1-b c1-c c1-d c1-e c1-f c1-g" style="" bis_skin_checked="1"><div data-ux="Container" class="x-el x-el-div c1-1 c1-2 c1-14 c1-13 c1-1y c1-1z c1-17 c1-20 c1-21 c1-b c1-c c1-d c1-22 c1-23 c1-24 c1-25 c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-26 c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-27 c1-4 c1-v c1-28 c1-29 c1-2a c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-2b c1-2c c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Element" id="bs-2" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><span data-ux="Element" class="x-el x-el-span c2-1 c2-2 c2-3 c2-4 c2-5 c2-6 c2-7 c2-8"><a rel="" role="button" aria-haspopup="menu" data-ux="LinkDropdown" data-toggle-ignore="true" id="8" aria-expanded="false" toggleid="n-22073-navId-mobile" icon="hamburger" data-edit-interactive="true" data-aid="HAMBURGER_MENU_LINK" aria-label="Hamburger Site Navigation Icon" href="https://thetailorsatelier.godaddysites.com/#" data-typography="LinkAlpha" class="x-el x-el-a c2-20 c2-21 c2-1g c2-1h c2-1i c2-1j c2-1k c2-1l c2-22 c2-19 c2-1a c2-1b c2-1c c2-1m c2-3 c2-4 c2-23 c2-24 c2-25 c2-5 c2-26 c2-6 c2-7 c2-8"><svg viewBox="0 0 24 24" fill="currentColor" width="40px" height="40px" data-ux="IconHamburger" class="x-el x-el-svg c2-1 c2-2 c2-1v c2-1w c2-27 c2-28 c2-29 c2-2a c2-2b c2-3 c2-4 c2-5 c2-6 c2-7 c2-8"><g><path fill-rule="evenodd" d="M4 8h16V6H4z"></path><path fill-rule="evenodd" d="M4 13.096h16v-2.001H4z"></path><path fill-rule="evenodd" d="M4 18.346h16v-2H4z"></path></g></svg></a></span></div></div><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-2v c1-2w c1-2c c1-v c1-2x c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" data-aid="HEADER_LOGO_RENDERED" class="x-el x-el-div c1-2y c1-2p c1-2z c1-30 c1-c c1-31 c1-32 c1-33 c1-34 c1-d c1-e c1-f c1-g" bis_skin_checked="1"><a rel="" role="link" aria-haspopup="menu" data-ux="Link" data-page="db92f1e0-4a95-4a25-82e1-a794b66f2902" title="The Tailor&#39;s Atelier" href="https://thetailorsatelier.godaddysites.com/" data-typography="LinkAlpha" class="x-el x-el-a c1-2d c1-2e c1-2f c1-2g c1-2h c1-35 c1-2i c1-1o c1-1p c1-1q c1-1r c1-17 c1-16 c1-b c1-36 c1-c c1-2l c1-37 c1-2n c1-d c1-e c1-f c1-g" data-tccl="ux2.HEADER.header9.Logo.Default.Link.Default.22081.click,click"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-1b c1-1c c1-1d c1-1e c1-1k c1-b c1-c c1-d c1-38 c1-e c1-f c1-g" bis_skin_checked="1"><img src="./The Tailor&#39;s Atelier_files/qt=q_95" srcset="//img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:146,h:103,cg:true,m/cr=w:146,h:103/qt=q:95, //img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:291,h:206,cg:true,m/cr=w:291,h:206/qt=q:95 2x, //img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:437,h:309,cg:true,m/cr=w:437,h:309/qt=q:95 3x" alt="The Tailor&#39;s Atelier" data-ux="ImageLogo" data-aid="HEADER_LOGO_IMAGE_RENDERED" class="x-el x-el-img c1-1 c1-2 c1-16 c1-17 c1-14 c1-13 c1-q c1-s c1-18 c1-39 c1-3a c1-3b c1-1w c1-3c c1-1b c1-1c c1-1d c1-1e c1-1j c1-1k c1-b c1-c c1-3d c1-3e c1-1n c1-3f c1-3g c1-3h c1-3i c1-3j c1-3k c1-3l c1-3m c1-3n c1-3o c1-3p c1-d c1-3q c1-3r c1-3s c1-e c1-f c1-g"></div></a></div></div><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-2b c1-v c1-3t c1-2c c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"></div></div></div><nav data-ux="Block" class="x-el x-el-nav c1-1 c1-2 c1-1a c1-b c1-c c1-d c1-3u c1-3v c1-3w c1-e c1-f c1-g"><div data-ux="Block" data-aid="HEADER_LOGO_RENDERED" class="x-el x-el-div c1-2y c1-2p c1-2z c1-30 c1-29 c1-3x c1-1e c1-1c c1-3y c1-l c1-3z c1-c c1-31 c1-32 c1-33 c1-34 c1-d c1-40 c1-e c1-f c1-g" bis_skin_checked="1"><a rel="" role="link" aria-haspopup="menu" data-ux="Link" data-page="db92f1e0-4a95-4a25-82e1-a794b66f2902" title="The Tailor&#39;s Atelier" href="https://thetailorsatelier.godaddysites.com/" data-typography="LinkAlpha" class="x-el x-el-a c1-2d c1-2e c1-2f c1-2g c1-2h c1-35 c1-2i c1-1o c1-1p c1-1q c1-1r c1-17 c1-16 c1-b c1-36 c1-c c1-2l c1-37 c1-2n c1-d c1-e c1-f c1-g" data-tccl="ux2.HEADER.header9.Logo.Default.Link.Default.22083.click,click"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-1b c1-1c c1-1d c1-1e c1-1k c1-b c1-c c1-d c1-38 c1-e c1-f c1-g" bis_skin_checked="1"><img src="./The Tailor&#39;s Atelier_files/qt=q_95" srcset="//img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:146,h:103,cg:true,m/cr=w:146,h:103/qt=q:95, //img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:291,h:206,cg:true,m/cr=w:291,h:206/qt=q:95 2x, //img1.wsimg.com/isteam/ip/9a054c7e-15ef-4e1d-8b65-52d948c002af/blob-23d45b7.png/:/rs=w:437,h:309,cg:true,m/cr=w:437,h:309/qt=q:95 3x" alt="The Tailor&#39;s Atelier" data-ux="ImageLogo" data-aid="HEADER_LOGO_IMAGE_RENDERED" id="n-22073" class="x-el x-el-img c1-1 c1-2 c1-16 c1-17 c1-14 c1-13 c1-q c1-s c1-18 c1-39 c1-3a c1-3b c1-1w c1-3c c1-1b c1-1c c1-1d c1-1e c1-1j c1-1k c1-b c1-c c1-3d c1-3e c1-1n c1-3f c1-3g c1-3h c1-3i c1-3j c1-3k c1-3l c1-3m c1-3n c1-3o c1-3p c1-d c1-3q c1-3r c1-3s c1-e c1-f c1-g" style="max-height: 103px; box-shadow: none; margin-top: 0px;"></div></a></div><div data-ux="Block" id="n-2207322082-navBarId" class="x-el x-el-div c1-1 c1-2 c1-41 c1-1e c1-1c c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><nav data-ux="Nav" data-aid="HEADER_NAV_RENDERED" role="navigation" class="x-el x-el-nav c1-1 c1-2 c1-17 c1-42 c1-43 c1-44 c1-4 c1-b c1-c c1-d c1-e c1-f c1-g"><ul data-ux="List" id="nav-22084" class="x-el x-el-ul c1-1 c1-2 c1-q c1-s c1-t c1-r c1-45 c1-46 c1-47 c1-o c1-1b c1-1c c1-1d c1-1e c1-b c1-c c1-d c1-e c1-f c1-g" style="white-space: nowrap;"><li data-ux="ListItemInline" class="x-el x-el-li nav-item c1-1 c1-2 c1-48 c1-t c1-49 c1-2p c1-4a c1-2q c1-4b c1-43 c1-o c1-4c c1-b c1-c c1-4d c1-4e c1-d c1-e c1-f c1-g visible" style="visibility: visible;"><a rel="" role="link" aria-haspopup="menu" data-ux="NavLinkActive" target="" data-page="db92f1e0-4a95-4a25-82e1-a794b66f2902" data-edit-interactive="true" href="https://thetailorsatelier.godaddysites.com/" data-typography="NavAlpha" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-15 c1-2i c1-b c1-2k c1-4g c1-4h c1-37 c1-4i c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.HEADER.header9.Nav.Default.Link.Active.22086.click,click">Home</a></li><li data-ux="ListItemInline" class="x-el x-el-li nav-item c1-1 c1-2 c1-48 c1-t c1-49 c1-2p c1-4a c1-2q c1-4b c1-43 c1-o c1-4c c1-b c1-c c1-4d c1-4e c1-d c1-e c1-f c1-g visible" style="visibility: visible;"><a rel="" role="link" aria-haspopup="false" data-ux="NavLink" target="" data-page="2eb891f7-7cee-4769-9cbb-3773c4d75933" data-edit-interactive="true" href="https://thetailorsatelier.godaddysites.com/about" data-typography="NavAlpha" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-15 c1-2i c1-4n c1-4o c1-4p c1-4q c1-2u c1-2s c1-2r c1-2t c1-b c1-2k c1-4g c1-4r c1-37 c1-4i c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.HEADER.header9.Nav.Default.Link.Default.22087.click,click">About</a></li><li data-ux="ListItemInline" class="x-el x-el-li nav-item c1-1 c1-2 c1-48 c1-t c1-49 c1-2p c1-4a c1-2q c1-4b c1-43 c1-o c1-4c c1-b c1-c c1-4d c1-4e c1-d c1-e c1-f c1-g visible" style="visibility: visible;"><a rel="" role="link" aria-haspopup="false" data-ux="NavLink" target="" data-page="a723b720-4959-40e8-aa43-3e6dc1f3cead" data-edit-interactive="true" href="https://thetailorsatelier.godaddysites.com/gallery" data-typography="NavAlpha" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-15 c1-2i c1-4n c1-4o c1-4p c1-4q c1-2u c1-2s c1-2r c1-2t c1-b c1-2k c1-4g c1-4r c1-37 c1-4i c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.HEADER.header9.Nav.Default.Link.Default.22088.click,click">Gallery</a></li><li data-ux="ListItemInline" class="x-el x-el-li nav-item c1-1 c1-2 c1-48 c1-t c1-49 c1-2p c1-4a c1-2q c1-4b c1-43 c1-o c1-4c c1-b c1-c c1-4d c1-4e c1-d c1-e c1-f c1-g visible" style="visibility: visible;"><a rel="" role="link" aria-haspopup="false" data-ux="NavLink" target="" data-page="6c35b9dd-94aa-4d2f-bf5c-58d8caa1816c" data-edit-interactive="true" href="https://thetailorsatelier.godaddysites.com/contact" data-typography="NavAlpha" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-15 c1-2i c1-4n c1-4o c1-4p c1-4q c1-2u c1-2s c1-2r c1-2t c1-b c1-2k c1-4g c1-4r c1-37 c1-4i c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.HEADER.header9.Nav.Default.Link.Default.22089.click,click">Contact</a></li><li data-ux="ListItemInline" class="x-el x-el-li nav-item c1-1 c1-2 c1-48 c1-t c1-49 c1-2p c1-4a c1-2q c1-4b c1-43 c1-o c1-4c c1-b c1-c c1-4d c1-4e c1-d c1-e c1-f c1-g" style="visibility: hidden; display: none;"><div data-ux="Element" id="bs-3" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><span data-ux="Element" class="x-el x-el-span c2-1 c2-2 c2-3 c2-4 c2-5 c2-6 c2-7 c2-8"><a rel="" role="button" aria-haspopup="menu" data-ux="NavLinkDropdown" data-toggle-ignore="true" id="3" aria-expanded="false" data-aid="NAV_MORE" data-edit-interactive="true" href="https://thetailorsatelier.godaddysites.com/#" data-typography="NavAlpha" class="x-el x-el-a c2-1e c2-1f c2-1g c2-1h c2-1i c2-1j c2-1k c2-1l c2-3 c2-1m c2-1n c2-1o c2-1p c2-1q c2-1r c2-1s c2-1t c2-1u"><div data-aid="NAV_MORE" style="pointer-events: none; display: flex; align-items: center;" bis_skin_checked="1"><span style="margin-right: 4px;">More</span><svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16" data-ux="Icon" class="x-el x-el-svg c2-1 c2-2 c2-1v c2-1w c2-1x c2-1y c2-m c2-o c2-1k c2-3 c2-1n c2-1r c2-1s c2-1t c2-1u"><path fill-rule="evenodd" d="M18.605 7l-6.793 7.024-6.375-7.002L4 8.467 11.768 17l.485-.501L20 8.489z"></path></svg></div></a></span></div><ul data-ux="Dropdown" role="menu" id="more-22085" class="x-el x-el-ul c1-1 c1-2 c1-4u c1-4v c1-3 c1-20 c1-21 c1-4w c1-4x c1-x c1-4y c1-4z c1-43 c1-50 c1-51 c1-1a c1-52 c1-b c1-c c1-53 c1-54 c1-d c1-e c1-f c1-g"><li data-ux="ListItem" role="menuitem" class="x-el x-el-li c1-1 c1-2 c1-48 c1-s c1-15 c1-29 c1-b c1-c c1-55 c1-d c1-e c1-f c1-g"><a rel="" role="link" aria-haspopup="menu" data-ux="NavMoreMenuLinkActive" target="" data-page="db92f1e0-4a95-4a25-82e1-a794b66f2902" data-edit-interactive="true" aria-labelledby="more-22085" href="https://thetailorsatelier.godaddysites.com/" data-typography="NavAlpha" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-2p c1-2i c1-56 c1-57 c1-58 c1-b c1-2k c1-4g c1-4h c1-37 c1-4i c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.HEADER.header9.Nav.MoreMenu.Link.Active.22092.click,click">Home</a></li><li data-ux="ListItem" role="menuitem" class="x-el x-el-li c1-1 c1-2 c1-48 c1-s c1-15 c1-29 c1-b c1-c c1-55 c1-d c1-e c1-f c1-g"><a rel="" role="link" aria-haspopup="false" data-ux="NavMoreMenuLink" target="" data-page="2eb891f7-7cee-4769-9cbb-3773c4d75933" data-edit-interactive="true" aria-labelledby="more-22085" href="https://thetailorsatelier.godaddysites.com/about" data-typography="NavAlpha" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-2p c1-2i c1-56 c1-57 c1-58 c1-b c1-2k c1-4g c1-4r c1-37 c1-4i c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.HEADER.header9.Nav.MoreMenu.Link.Default.22093.click,click">About</a></li><li data-ux="ListItem" role="menuitem" class="x-el x-el-li c1-1 c1-2 c1-48 c1-s c1-15 c1-29 c1-b c1-c c1-55 c1-d c1-e c1-f c1-g"><a rel="" role="link" aria-haspopup="false" data-ux="NavMoreMenuLink" target="" data-page="a723b720-4959-40e8-aa43-3e6dc1f3cead" data-edit-interactive="true" aria-labelledby="more-22085" href="https://thetailorsatelier.godaddysites.com/gallery" data-typography="NavAlpha" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-2p c1-2i c1-56 c1-57 c1-58 c1-b c1-2k c1-4g c1-4r c1-37 c1-4i c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.HEADER.header9.Nav.MoreMenu.Link.Default.22094.click,click">Gallery</a></li><li data-ux="ListItem" role="menuitem" class="x-el x-el-li c1-1 c1-2 c1-48 c1-s c1-15 c1-29 c1-b c1-c c1-55 c1-d c1-e c1-f c1-g"><a rel="" role="link" aria-haspopup="false" data-ux="NavMoreMenuLink" target="" data-page="6c35b9dd-94aa-4d2f-bf5c-58d8caa1816c" data-edit-interactive="true" aria-labelledby="more-22085" href="https://thetailorsatelier.godaddysites.com/contact" data-typography="NavAlpha" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-2p c1-2i c1-56 c1-57 c1-58 c1-b c1-2k c1-4g c1-4r c1-37 c1-4i c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.HEADER.header9.Nav.MoreMenu.Link.Default.22095.click,click">Contact</a></li></ul></li></ul></nav></div></nav></div></div></div><div role="navigation" data-ux="NavigationDrawer" id="n-22073-navId-mobile" class="x-el x-el-div c1-1 c1-2 c1-3 c1-59 c1-y c1-4 c1-w c1-51 c1-5a c1-i c1-5b c1-5c c1-5d c1-5e c1-5f c1-12 c1-v c1-1u c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-1y c1-1z c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><svg viewBox="0 0 24 24" fill="currentColor" width="40px" height="40px" data-ux="CloseIcon" data-edit-interactive="true" data-close="true" class="x-el x-el-svg c1-1 c1-2 c1-2k c1-2p c1-18 c1-2r c1-2s c1-2t c1-2u c1-2i c1-5g c1-5h c1-x c1-5i c1-5j c1-5k c1-b c1-2m c1-5l c1-5m c1-5n c1-5o"><path fill-rule="evenodd" d="M17.999 4l-6.293 6.293L5.413 4 4 5.414l6.292 6.293L4 18l1.413 1.414 6.293-6.292 6.293 6.292L19.414 18l-6.294-6.293 6.294-6.293z"></path></svg></div><div data-ux="Container" id="n-22073-navContainerId-mobile" class="x-el x-el-div c1-1 c1-2 c1-14 c1-13 c1-1y c1-1z c1-17 c1-51 c1-5p c1-4 c1-5q c1-b c1-c c1-5r c1-d c1-5s c1-e c1-5t c1-f c1-5u c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-v c1-2j c1-28 c1-5v c1-1u c1-5w c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"></div><div data-ux="Block" id="n-22073-navLinksContentId-mobile" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><ul role="menu" data-ux="NavigationDrawerList" id="n-22073-navListId-mobile" class="x-el x-el-ul c1-1 c1-2 c1-q c1-s c1-t c1-r c1-45 c1-46 c1-47 c1-29 c1-1b c1-1d c1-1e c1-1c c1-2g c1-2h c1-b c1-c c1-d c1-e c1-f c1-g"><li role="menuitem" data-ux="NavigationDrawerListItem" class="x-el x-el-li c1-1 c1-2 c1-48 c1-s c1-15 c1-5x c1-5y c1-5z c1-b c1-c c1-55 c1-60 c1-d c1-e c1-f c1-g"><a rel="" role="link" aria-haspopup="menu" data-ux="NavigationDrawerLinkActive" target="" data-page="db92f1e0-4a95-4a25-82e1-a794b66f2902" data-edit-interactive="true" data-close="true" href="https://thetailorsatelier.godaddysites.com/" data-typography="NavBeta" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-v c1-2i c1-20 c1-21 c1-1y c1-1z c1-28 c1-61 c1-62 c1-b c1-2k c1-63 c1-4h c1-37 c1-4i c1-64 c1-65 c1-66 c1-67 c1-68" data-tccl="ux2.HEADER.header9.NavigationDrawer.Default.Link.Active.22096.click,click"><span>Home</span></a></li><li role="menuitem" data-ux="NavigationDrawerListItem" class="x-el x-el-li c1-1 c1-2 c1-48 c1-s c1-15 c1-5x c1-5y c1-5z c1-b c1-c c1-55 c1-60 c1-d c1-e c1-f c1-g"><a rel="" role="link" aria-haspopup="false" data-ux="NavigationDrawerLink" target="" data-page="2eb891f7-7cee-4769-9cbb-3773c4d75933" data-edit-interactive="true" data-close="true" href="https://thetailorsatelier.godaddysites.com/about" data-typography="NavBeta" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-v c1-2i c1-20 c1-21 c1-1y c1-1z c1-28 c1-61 c1-62 c1-b c1-2k c1-63 c1-4r c1-37 c1-4i c1-64 c1-65 c1-66 c1-67 c1-68" data-tccl="ux2.HEADER.header9.NavigationDrawer.Default.Link.Default.22097.click,click"><span>About</span></a></li><li role="menuitem" data-ux="NavigationDrawerListItem" class="x-el x-el-li c1-1 c1-2 c1-48 c1-s c1-15 c1-5x c1-5y c1-5z c1-b c1-c c1-55 c1-60 c1-d c1-e c1-f c1-g"><a rel="" role="link" aria-haspopup="false" data-ux="NavigationDrawerLink" target="" data-page="a723b720-4959-40e8-aa43-3e6dc1f3cead" data-edit-interactive="true" data-close="true" href="https://thetailorsatelier.godaddysites.com/gallery" data-typography="NavBeta" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-v c1-2i c1-20 c1-21 c1-1y c1-1z c1-28 c1-61 c1-62 c1-b c1-2k c1-63 c1-4r c1-37 c1-4i c1-64 c1-65 c1-66 c1-67 c1-68" data-tccl="ux2.HEADER.header9.NavigationDrawer.Default.Link.Default.22098.click,click"><span>Gallery</span></a></li><li role="menuitem" data-ux="NavigationDrawerListItem" class="x-el x-el-li c1-1 c1-2 c1-48 c1-s c1-15 c1-5x c1-5y c1-5z c1-b c1-c c1-55 c1-60 c1-d c1-e c1-f c1-g"><a rel="" role="link" aria-haspopup="false" data-ux="NavigationDrawerLink" target="" data-page="6c35b9dd-94aa-4d2f-bf5c-58d8caa1816c" data-edit-interactive="true" data-close="true" href="https://thetailorsatelier.godaddysites.com/contact" data-typography="NavBeta" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-v c1-2i c1-20 c1-21 c1-1y c1-1z c1-28 c1-61 c1-62 c1-b c1-2k c1-63 c1-4r c1-37 c1-4i c1-64 c1-65 c1-66 c1-67 c1-68" data-tccl="ux2.HEADER.header9.NavigationDrawer.Default.Link.Default.22099.click,click"><span>Contact</span></a></li></ul><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-15 c1-d c1-26 c1-e c1-f c1-g" bis_skin_checked="1"></div></div></div></div><div data-ux="Container" class="x-el x-el-div c1-1 c1-2 c1-14 c1-13 c1-1y c1-1z c1-17 c1-69 c1-l c1-b c1-c c1-5r c1-d c1-5s c1-e c1-5t c1-f c1-5u c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-v c1-28 c1-2x c1-6a c1-2w c1-4 c1-i c1-j c1-b c1-c c1-d c1-6b c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-6c c1-6d c1-v c1-28 c1-2x c1-6e c1-6f c1-x c1-6g c1-12 c1-6h c1-b c1-c c1-6i c1-6j c1-6k c1-6l c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Hero" class="x-el x-el-div c1-1 c1-2 c1-6m c1-6n c1-v c1-28 c1-2x c1-1u c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div style="max-width:100%;display:flex;align-items:center;justify-content:center" bis_skin_checked="1"><div data-ux="Element" id="tagline-container-22100" class="x-el x-el-div c1-1 c1-2 c1-2g c1-2h c1-6o c1-15 c1-o c1-17 c1-b c1-c c1-d c1-e c1-f c1-g" style="" bis_skin_checked="1"><h1 role="heading" aria-level="1" data-ux="Tagline" data-aid="HEADER_TAGLINE_RENDERED" id="dynamic-tagline-22101" data-typography="HeadingAlpha" class="x-el x-el-h1 c1-1 c1-2y c1-2g c1-2h c1-6o c1-t c1-r c1-q c1-57 c1-6p c1-2p c1-17 c1-2z c1-6q c1-6r c1-4r c1-6s c1-6t c1-6u c1-6v c1-6w" data-last-size="32px">Custom design &amp; alteration</h1><span role="heading" aria-level="NaN" data-ux="scaler" data-size="xlarge" data-scaler-id="scaler-tagline-container-22100" aria-hidden="true" data-typography="HeadingAlpha" class="x-el x-el-span c1-1 c1-2y c1-6x c1-6y c1-6o c1-t c1-r c1-q c1-57 c1-6p c1-1a c1-17 c1-4c c1-x c1-16 c1-6z c1-z c1-5k c1-2z c1-6q c1-4r c1-6s c1-5l c1-5m c1-5n c1-5o" style="display: none;">Custom design &amp; alteration</span><span role="heading" aria-level="NaN" data-ux="scaler" data-size="large" data-scaler-id="scaler-tagline-container-22100" aria-hidden="true" data-typography="HeadingAlpha" class="x-el x-el-span c1-1 c1-2y c1-6x c1-6y c1-6o c1-t c1-r c1-q c1-57 c1-6p c1-1a c1-17 c1-4c c1-x c1-16 c1-6z c1-z c1-63 c1-2z c1-6q c1-4r c1-6s c1-64 c1-66 c1-67 c1-68" style="display: none;">Custom design &amp; alteration</span></div></div><div style="max-width:100%;display:flex;align-items:center;justify-content:center" bis_skin_checked="1"><div style="max-width:100%" bis_skin_checked="1"><a data-ux-btn="primary" data-ux="ButtonPrimary" data-aid="HEADER_CTA_BTN" href="tel:+19785405545" target="" data-tccl="ux2.header.cta_button.click,click" data-typography="ButtonAlpha" class="x-el x-el-a c1-4f c1-2y c1-16 c1-17 c1-2i c1-70 c1-71 c1-28 c1-2x c1-2w c1-2f c1-2h c1-2g c1-o c1-4b c1-72 c1-73 c1-74 c1-75 c1-1j c1-76 c1-77 c1-l c1-b c1-4h c1-78 c1-4g c1-79 c1-7a c1-7b c1-7c c1-7d c1-7e c1-7f c1-7g c1-7h c1-7i c1-7j c1-7k c1-7l c1-7m c1-7n c1-7o c1-7p c1-7q c1-7r c1-7s c1-7t c1-7u c1-4j c1-4k c1-4l c1-4m">Contact Us</a></div></div></div></div></div></div></div></div></div></section>  </div></div></div><div id="8e5e1a03-6286-49d3-8d4e-a43cf0dfc27e" class="widget widget-about widget-about-about-2" bis_skin_checked="1"><div data-ux="Widget" role="region" id="8e5e1a03-6286-49d3-8d4e-a43cf0dfc27e" class="x-el x-el-div x-el c1-1 c1-2 c1-3 c1-b c1-c c1-d c1-e c1-f c1-g c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div bis_skin_checked="1"> <section data-ux="Section" class="x-el x-el-section c1-1 c1-2 c1-3 c1-i c1-j c1-b c1-c c1-m c1-n c1-d c1-e c1-f c1-g"><div data-ux="Container" class="x-el x-el-div c1-1 c1-2 c1-14 c1-13 c1-1y c1-1z c1-17 c1-b c1-c c1-5r c1-d c1-5s c1-e c1-5t c1-f c1-5u c1-g" bis_skin_checked="1"><h2 role="heading" aria-level="2" data-ux="SectionHeading" data-aid="ABOUT_SECTION_TITLE_RENDERED" data-typography="HeadingBeta" class="x-el x-el-h2 c1-1 c1-2y c1-2g c1-2h c1-7v c1-t c1-r c1-q c1-7w c1-2w c1-2z c1-5k c1-2k c1-4r c1-7x c1-5l c1-7y c1-5m c1-5n c1-5o"><span data-ux="Element" class="">About</span></h2><div data-ux="Grid" class="x-el x-el-div c1-1 c1-2 c1-v c1-83 c1-84 c1-85 c1-q c1-86 c1-87 c1-88 c1-b c1-c c1-89 c1-8a c1-8b c1-8c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="GridCell" class="x-el x-el-div c1-1 c1-2 c1-83 c1-6a c1-8d c1-8e c1-17 c1-1b c1-8f c1-8g c1-8h c1-b c1-c c1-8i c1-8j c1-8k c1-8l c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Grid" class="x-el x-el-div c1-1 c1-2 c1-v c1-83 c1-84 c1-85 c1-q c1-86 c1-s c1-88 c1-2x c1-b c1-c c1-89 c1-8a c1-8m c1-8c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="GridCell" class="x-el x-el-div c1-1 c1-2 c1-83 c1-6a c1-8d c1-8e c1-17 c1-1b c1-8f c1-1d c1-8h c1-8n c1-2x c1-b c1-c c1-8o c1-8p c1-8i c1-8j c1-8q c1-8l c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-8r c1-2w c1-b c1-c c1-d c1-8s c1-e c1-f c1-g" bis_skin_checked="1"><span data-ux="Element" class="x-el x-el-span c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g"><picture class="x-el x-el-picture c1-1 c1-2 c1-4 c1-w c1-2w c1-8t c1-1k c1-b c1-c c1-d c1-e c1-f c1-g"><source media="(max-width: 450px)" srcset="//img1.wsimg.com/isteam/stock/21901/:/cr=t:0%25,l:16.64%25,w:66.73%25,h:100%25/rs=w:403,h:403,cg:true, //img1.wsimg.com/isteam/stock/21901/:/cr=t:0%25,l:16.64%25,w:66.73%25,h:100%25/rs=w:806,h:806,cg:true 2x, //img1.wsimg.com/isteam/stock/21901/:/cr=t:0%25,l:16.64%25,w:66.73%25,h:100%25/rs=w:1209,h:1209,cg:true 3x"><source media="(min-width: 451px)" srcset="//img1.wsimg.com/isteam/stock/21901/:/cr=t:0%25,l:16.64%25,w:66.73%25,h:100%25/rs=w:600,h:600,cg:true, //img1.wsimg.com/isteam/stock/21901/:/cr=t:0%25,l:16.64%25,w:66.73%25,h:100%25/rs=w:1200,h:1200,cg:true 2x, //img1.wsimg.com/isteam/stock/21901/:/cr=t:0%25,l:16.64%25,w:66.73%25,h:100%25/rs=w:1800,h:1800,cg:true 3x"><img data-ux="Image" src="./The Tailor&#39;s Atelier_files/rs=w_600,h_600,cg_true" data-aid="ABOUT_IMAGE_RENDERED0" overlayalpha="0" class="x-el x-el-img c1-1 c1-2 c1-16 c1-17 c1-14 c1-13 c1-q c1-s c1-18 c1-8u c1-8v c1-l c1-6c c1-b c1-c c1-8w c1-d c1-e c1-f c1-g"></picture></span></div></div><div data-ux="GridCell" class="x-el x-el-div c1-1 c1-2 c1-83 c1-6a c1-8d c1-8e c1-17 c1-1b c1-8f c1-1d c1-8h c1-v c1-2j c1-28 c1-b c1-c c1-8o c1-8p c1-8i c1-8j c1-8q c1-8l c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="ContentBasic" index="0" id="bdf7a509-4344-4331-9924-6faa9514d336" class="x-el x-el-div x-el c1-1 c1-2 c1-v c1-1u c1-4 c1-8x c1-28 c1-2w c1-8y c1-8z c1-b c1-c c1-90 c1-91 c1-d c1-e c1-f c1-g c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><h4 role="heading" aria-level="4" data-ux="ContentHeading" data-aid="ABOUT_HEADLINE_RENDERED0" data-typography="HeadingDelta" class="x-el x-el-h4 c1-4f c1-2y c1-2g c1-2h c1-92 c1-t c1-r c1-q c1-s c1-b c1-2k c1-c c1-4r c1-d c1-e c1-f c1-g">Stylish Elegance</h4><div data-ux="ContentText" alignment="center" data-aid="ABOUT_DESCRIPTION_RENDERED0" data-typography="BodyAlpha" class="x-el c1-1 c1-2 c1-2g c1-2h c1-58 c1-q c1-s c1-93 c1-94 c1-95 c1-96 c1-97 c1-98 c1-99 c1-9a c1-9b c1-9c c1-9d c1-9e c1-9f c1-9g c1-9h c1-9i c1-9j c1-9k c1-9l c1-9m c1-9n c1-9o c1-9p c1-9q c1-9r c1-9s c1-9t c1-9u c1-6a c1-b c1-48 c1-c c1-4r c1-d c1-e c1-f c1-g x-rt" bis_skin_checked="1"><p style="margin:0"><span>Welcome to The Tailor's Atelier, where timeless craftsmanship meets contemporary style. We take pride in creating custom clothing that enhances your wardrobe and elevates your entire look and personal style. In a world dominated by fast fashion and mass-produced garments, bespoke tailoring remains as relevant and impactful as ever in the modern age. Here's why it matters in the modern world:</span></p><p style="margin:0"><span><br></span></p><p style="margin:0"><span><strong class="x-el x-el-span c1-2d c1-2e c1-b c1-9v c1-2o c1-4h c1-9w">1. Precision Fit:</strong> Our garments are tailored to fit you perfectly, enhancing your comfort and confidence.</span></p><p style="margin:0"><span><br></span></p><p style="margin:0"><span><strong class="x-el x-el-span c1-2d c1-2e c1-b c1-9v c1-2o c1-4h c1-9w">2. Unrivaled Quality:</strong> We craft each piece by hand using the finest materials for long-lasting style and durability.</span></p><p style="margin:0"><span><br></span></p><p style="margin:0"><span><strong class="x-el x-el-span c1-2d c1-2e c1-b c1-9v c1-2o c1-4h c1-9w">3. Personalized Expression:</strong> With us, you choose every detail, creating clothing that mirrors your individual style.</span></p><p style="margin:0"><span><br></span></p><p style="margin:0"><span><strong class="x-el x-el-span c1-2d c1-2e c1-b c1-9v c1-2o c1-4h c1-9w">4. Sustainability:</strong> We believe in quality over quantity, promoting a sustainable approach to fashion.</span></p></div></div></div></div></div><div data-ux="GridCell" class="x-el x-el-div c1-1 c1-2 c1-83 c1-6a c1-8d c1-8e c1-17 c1-1b c1-8f c1-8g c1-8h c1-b c1-c c1-8i c1-8j c1-8k c1-8l c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Grid" class="x-el x-el-div c1-1 c1-2 c1-v c1-83 c1-a0 c1-85 c1-q c1-86 c1-s c1-88 c1-2x c1-b c1-c c1-89 c1-8a c1-8m c1-8c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="GridCell" class="x-el x-el-div c1-1 c1-2 c1-83 c1-6a c1-8d c1-8e c1-17 c1-1b c1-8f c1-1d c1-8h c1-8n c1-2x c1-b c1-c c1-8o c1-8p c1-8i c1-8j c1-8q c1-8l c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-8r c1-2w c1-b c1-c c1-d c1-8s c1-e c1-f c1-g" bis_skin_checked="1"><span data-ux="Element" class="x-el x-el-span c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g"><picture data-lazyimg="true" class="x-el x-el-picture c1-1 c1-2 c1-4 c1-w c1-2w c1-8t c1-1k c1-b c1-c c1-d c1-e c1-f c1-g"><source media="(max-width: 450px)" srcset="//img1.wsimg.com/isteam/stock/o3VypQj/:/rs=w:403,h:202,cg:true,m/cr=w:403,h:202, //img1.wsimg.com/isteam/stock/o3VypQj/:/rs=w:806,h:403,cg:true,m/cr=w:806,h:403 2x, //img1.wsimg.com/isteam/stock/o3VypQj/:/rs=w:1209,h:605,cg:true,m/cr=w:1209,h:605 3x"><source media="(min-width: 451px)" srcset="//img1.wsimg.com/isteam/stock/o3VypQj/:/rs=w:600,h:300,cg:true,m/cr=w:600,h:300, //img1.wsimg.com/isteam/stock/o3VypQj/:/rs=w:1200,h:600,cg:true,m/cr=w:1200,h:600 2x, //img1.wsimg.com/isteam/stock/o3VypQj/:/rs=w:1800,h:900,cg:true,m/cr=w:1800,h:900 3x"><img data-ux="Image" src="./The Tailor&#39;s Atelier_files/cr=w_600,h_300" data-aid="ABOUT_IMAGE_RENDERED1" class="x-el x-el-img c1-1 c1-2 c1-16 c1-17 c1-14 c1-13 c1-q c1-s c1-18 c1-a1 c1-8v c1-l c1-b c1-c c1-a2 c1-d c1-e c1-f c1-g"></picture></span></div></div><div data-ux="GridCell" class="x-el x-el-div c1-1 c1-2 c1-83 c1-6a c1-8d c1-8e c1-17 c1-1b c1-8f c1-1d c1-8h c1-v c1-2j c1-28 c1-b c1-c c1-8o c1-8p c1-8i c1-8j c1-8q c1-8l c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="ContentBasic" index="1" id="044e9e2e-338c-4c3a-aaee-b68f36428d3c" class="x-el x-el-div x-el c1-1 c1-2 c1-v c1-1u c1-4 c1-8x c1-28 c1-2w c1-8y c1-8z c1-b c1-c c1-90 c1-91 c1-d c1-e c1-f c1-g c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><h4 role="heading" aria-level="4" data-ux="ContentHeading" data-aid="ABOUT_HEADLINE_RENDERED1" data-typography="HeadingDelta" class="x-el x-el-h4 c1-4f c1-2y c1-2g c1-2h c1-92 c1-t c1-r c1-q c1-s c1-b c1-2k c1-c c1-4r c1-d c1-e c1-f c1-g">My Services</h4><div data-ux="ContentText" alignment="center" data-aid="ABOUT_DESCRIPTION_RENDERED1" data-typography="BodyAlpha" class="x-el c1-1 c1-2 c1-2g c1-2h c1-58 c1-q c1-s c1-93 c1-94 c1-95 c1-96 c1-97 c1-98 c1-99 c1-9a c1-9b c1-9c c1-9d c1-9e c1-9f c1-9g c1-9h c1-9i c1-9j c1-9k c1-9l c1-9m c1-9n c1-9o c1-9p c1-9q c1-9r c1-9s c1-9t c1-9u c1-6a c1-b c1-48 c1-c c1-4r c1-d c1-e c1-f c1-g x-rt" bis_skin_checked="1"><p style="margin:0"><span>I'm your About section. Click to edit and tell your visitors about your custom services. Do you do patterning or sizing? Do you have access to premium fabrics? Can you work from a picture?&nbsp;</span></p></div></div></div></div></div><div data-ux="GridCell" class="x-el x-el-div c1-1 c1-2 c1-83 c1-6a c1-8d c1-8e c1-17 c1-1b c1-8f c1-8g c1-8h c1-b c1-c c1-8i c1-8j c1-8k c1-8l c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Grid" class="x-el x-el-div c1-1 c1-2 c1-v c1-83 c1-84 c1-85 c1-q c1-86 c1-s c1-88 c1-2x c1-b c1-c c1-89 c1-8a c1-8m c1-8c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="GridCell" class="x-el x-el-div c1-1 c1-2 c1-83 c1-6a c1-8d c1-8e c1-17 c1-1b c1-8f c1-1d c1-8h c1-8n c1-2x c1-b c1-c c1-8o c1-8p c1-8i c1-8j c1-8q c1-8l c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-8r c1-2w c1-b c1-c c1-d c1-8s c1-e c1-f c1-g" bis_skin_checked="1"><span data-ux="Element" class="x-el x-el-span c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g"><picture data-lazyimg="true" class="x-el x-el-picture c1-1 c1-2 c1-4 c1-w c1-2w c1-8t c1-1k c1-b c1-c c1-d c1-e c1-f c1-g"><source media="(max-width: 450px)" srcset="//img1.wsimg.com/isteam/stock/28421/:/rs=w:403,h:202,cg:true,m/cr=w:403,h:202, //img1.wsimg.com/isteam/stock/28421/:/rs=w:806,h:403,cg:true,m/cr=w:806,h:403 2x, //img1.wsimg.com/isteam/stock/28421/:/rs=w:1209,h:605,cg:true,m/cr=w:1209,h:605 3x"><source media="(min-width: 451px)" srcset="//img1.wsimg.com/isteam/stock/28421/:/rs=w:600,h:300,cg:true,m/cr=w:600,h:300, //img1.wsimg.com/isteam/stock/28421/:/rs=w:1200,h:600,cg:true,m/cr=w:1200,h:600 2x, //img1.wsimg.com/isteam/stock/28421/:/rs=w:1800,h:900,cg:true,m/cr=w:1800,h:900 3x"><img data-ux="Image" src="./The Tailor&#39;s Atelier_files/cr=w_600,h_300(1)" data-aid="ABOUT_IMAGE_RENDERED2" class="x-el x-el-img c1-1 c1-2 c1-16 c1-17 c1-14 c1-13 c1-q c1-s c1-18 c1-a1 c1-8v c1-l c1-b c1-c c1-a2 c1-d c1-e c1-f c1-g"></picture></span></div></div><div data-ux="GridCell" class="x-el x-el-div c1-1 c1-2 c1-83 c1-6a c1-8d c1-8e c1-17 c1-1b c1-8f c1-1d c1-8h c1-v c1-2j c1-28 c1-b c1-c c1-8o c1-8p c1-8i c1-8j c1-8q c1-8l c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="ContentBasic" index="2" id="486d7076-8e4f-44e9-b021-745e9eaffa6a" class="x-el x-el-div x-el c1-1 c1-2 c1-v c1-1u c1-4 c1-8x c1-28 c1-2w c1-8y c1-8z c1-b c1-c c1-90 c1-91 c1-d c1-e c1-f c1-g c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><h4 role="heading" aria-level="4" data-ux="ContentHeading" data-aid="ABOUT_HEADLINE_RENDERED2" data-typography="HeadingDelta" class="x-el x-el-h4 c1-4f c1-2y c1-2g c1-2h c1-92 c1-t c1-r c1-q c1-s c1-b c1-2k c1-c c1-4r c1-d c1-e c1-f c1-g">custom design &amp; Alterations</h4><div data-ux="ContentText" alignment="center" data-aid="ABOUT_DESCRIPTION_RENDERED2" data-typography="BodyAlpha" class="x-el c1-1 c1-2 c1-2g c1-2h c1-58 c1-q c1-s c1-93 c1-94 c1-95 c1-96 c1-97 c1-98 c1-99 c1-9a c1-9b c1-9c c1-9d c1-9e c1-9f c1-9g c1-9h c1-9i c1-9j c1-9k c1-9l c1-9m c1-9n c1-9o c1-9p c1-9q c1-9r c1-9s c1-9t c1-9u c1-6a c1-b c1-48 c1-c c1-4r c1-d c1-e c1-f c1-g x-rt" bis_skin_checked="1"><p style="margin:0"><span>I'm your About section. Click to edit and tell your visitors about your clothing care and alteration services. What kind of alterations can you do? How long does it take? Do you have a price list?</span></p></div></div></div></div></div></div></div></section>  </div></div></div><div id="7dc14517-1c40-406b-8357-ee0880dacbc4" class="widget widget-socialfeed widget-socialfeed-social-feed-2" bis_skin_checked="1"><div data-ux="Widget" role="region" id="7dc14517-1c40-406b-8357-ee0880dacbc4" class="x-el x-el-div x-el c1-1 c1-2 c1-3 c1-b c1-c c1-d c1-e c1-f c1-g c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div bis_skin_checked="1"> <section data-ux="Section" class="x-el x-el-section c1-1 c1-2 c1-3 c1-i c1-j c1-b c1-c c1-m c1-n c1-d c1-e c1-f c1-g"><div data-ux="Container" class="x-el x-el-div c1-1 c1-2 c1-14 c1-13 c1-1y c1-1z c1-17 c1-b c1-c c1-5r c1-d c1-5s c1-e c1-5t c1-f c1-5u c1-g" bis_skin_checked="1"><h2 role="heading" aria-level="2" data-ux="SectionHeading" data-aid="SOCIALFEED_SECTION_TITLE_RENDERED" data-typography="HeadingBeta" class="x-el x-el-h2 c1-1 c1-2y c1-2g c1-2h c1-7v c1-t c1-r c1-q c1-7w c1-2w c1-2z c1-5k c1-2k c1-4r c1-7x c1-5l c1-7y c1-5m c1-5n c1-5o"><span data-ux="Element" class="">Instagram</span></h2><div data-ux="Element" id="bs-4" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-v c1-1u c1-28 c1-c c1-2k c1-b c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Loader" class="x-el x-el-div c1-1 c1-2 c1-a3 c1-a4 c1-a5 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><svg data-ux="SVG" viewBox="0 0 44 44" width="3em" height="3em" fill="currentColor" fill-rule="evenodd" class="x-el x-el-svg c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g"><circle cx="12" cy="22" r="3"></circle><circle cx="22" cy="22" r="3"></circle><circle cx="32" cy="22" r="3"></circle></svg></div></div><div data-ux="Grid" class="x-el x-el-div c1-1 c1-2 c1-v c1-83 c1-84 c1-85 c1-q c1-86 c1-a6 c1-88 c1-o c1-28 c1-2x c1-a7 c1-b c1-c c1-33 c1-a8 c1-a9 c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="GridCell" class="x-el x-el-div c1-1 c1-2 c1-83 c1-6a c1-8d c1-aa c1-17 c1-1b c1-8f c1-ab c1-8h c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-4 c1-17 c1-ac c1-ad c1-ae c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"></div></div></div></div></div></section>  </div></div></div><div id="c55e8f93-0b99-4daf-ac96-f7420f4fdee8" class="widget widget-reviews widget-reviews-reviews-1" bis_skin_checked="1"><div data-ux="WidgetBanner" role="region" id="c55e8f93-0b99-4daf-ac96-f7420f4fdee8" class="x-el x-el-div x-el c1-1 c1-2 c1-3 c1-b c1-c c1-d c1-e c1-f c1-g c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div bis_skin_checked="1"> <div role="img" data-aid="SECTION_BACKGROUND" data-ux="Background" class="x-el x-el-div c1-1 c1-2 c1-af c1-ag c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" data-lazybg="true" class="x-el x-el-div d-none c1-1 c1-2 c1-ah c1-ai c1-aj c1-ak c1-78 c1-b c1-c c1-al c1-am c1-an c1-ao c1-ap c1-aq c1-ar c1-as c1-at c1-au c1-av c1-aw c1-ax c1-ay c1-az c1-b0 c1-b1 c1-b2 c1-b3 c1-b4 c1-b5 c1-d c1-e c1-f c1-g" bis_skin_checked="1"></div><section data-ux="SectionBanner" class="x-el x-el-section c1-1 c1-2 c1-1w c1-b6 c1-b7 c1-b c1-c c1-m c1-n c1-d c1-b8 c1-b9 c1-e c1-f c1-g"><div data-ux="Container" class="x-el x-el-div c1-1 c1-2 c1-14 c1-13 c1-1e c1-1c c1-17 c1-b c1-c c1-5r c1-d c1-5s c1-e c1-5t c1-f c1-5u c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-ba c1-b c1-c c1-d c1-40 c1-e c1-f c1-g" bis_skin_checked="1"><h2 role="heading" aria-level="2" data-ux="SectionBannerHeading" data-aid="REVIEWS_SECTION_TITLE_RENDERED" data-typography="HeadingAlpha" class="x-el x-el-h2 c1-1 c1-2y c1-2g c1-2h c1-6o c1-t c1-r c1-q c1-bb c1-2w c1-2z c1-bc c1-6r c1-4r c1-6t c1-6u c1-6v c1-6w">Reviews</h2><div data-ux="Element" id="bs-5" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Container" class="x-el x-el-div c1-1 c1-2 c1-14 c1-13 c1-1y c1-1z c1-17 c1-v c1-1u c1-bd c1-b c1-c c1-5r c1-d c1-5s c1-e c1-5t c1-f c1-5u c1-g" bis_skin_checked="1"><div data-ux="ZeroStateOverlay" class="x-el x-el-div c1-1 c1-2 c1-q c1-13 c1-s c1-14 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"></div></div></div></div></div></section></div>  </div></div></div><div id="3797bf03-fff4-41b4-81f5-296e2ac77d3a" class="widget widget-contact widget-contact-contact-4" bis_skin_checked="1"><div data-ux="WidgetSplit" role="region" id="3797bf03-fff4-41b4-81f5-296e2ac77d3a" class="x-el x-el-div x-el c1-1 c1-2 c1-3 c1-b c1-c c1-d c1-e c1-f c1-g c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div bis_skin_checked="1"> <div data-ux="ContainerSplit" class="x-el x-el-div c1-1 c1-2 c1-t c1-r c1-1e c1-1c c1-17 c1-v c1-1u c1-o c1-3 c1-be c1-12 c1-b c1-c c1-d c1-bf c1-bg c1-bh c1-bi c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="SplitItem" id="form-container22102" class="x-el x-el-div c1-1 c1-2 c1-v c1-6a c1-2c c1-17 c1-o c1-b c1-c c1-bj c1-bk c1-bl c1-d c1-bm c1-bn c1-3w c1-bo c1-e c1-f c1-g" bis_skin_checked="1"><section data-ux="SectionSplit" data-aid="CONTACT_INFO_CONTAINER_REND" class="x-el x-el-section c1-1 c1-2 c1-3 c1-i c1-j c1-4 c1-b c1-c c1-m c1-n c1-d c1-e c1-f c1-g"><div data-ux="Container" class="x-el x-el-div c1-1 c1-2 c1-14 c1-13 c1-1y c1-1z c1-17 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-4 c1-b c1-c c1-d c1-40 c1-bp c1-8s c1-bq c1-e c1-f c1-g" bis_skin_checked="1"><h2 role="heading" aria-level="2" data-ux="SectionSplitHeading" data-aid="CONTACT_SECTION_TITLE_REND" data-typography="HeadingBeta" class="x-el x-el-h2 c1-1 c1-2y c1-2g c1-2h c1-7v c1-t c1-r c1-q c1-7w c1-2w c1-2z c1-5k c1-2k c1-4r c1-7x c1-5l c1-br c1-5m c1-5n c1-5o"><span data-ux="Element" class="">Contact Us</span></h2><div data-ux="Content" class="x-el x-el-div c1-1 c1-2 c1-29 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-7w c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><h4 role="heading" aria-level="4" data-ux="ContentHeading" data-aid="CONTACT_INTRO_HEADING_REND" data-typography="HeadingDelta" class="x-el x-el-h4 c1-4f c1-2y c1-2g c1-2h c1-92 c1-t c1-r c1-q c1-8r c1-b c1-2k c1-c c1-4r c1-d c1-e c1-f c1-g">Not sure if we're the best fit?</h4><div data-ux="ContentText" data-aid="CONTACT_INTRO_DESC_REND" data-typography="BodyAlpha" class="x-el c1-1 c1-2 c1-2g c1-2h c1-58 c1-q c1-8r c1-93 c1-94 c1-95 c1-96 c1-97 c1-98 c1-99 c1-9a c1-9b c1-9c c1-9d c1-9e c1-9f c1-9g c1-9h c1-9i c1-9j c1-9k c1-9l c1-9m c1-9n c1-9o c1-9p c1-9q c1-9r c1-9s c1-9t c1-9u c1-b c1-48 c1-c c1-4r c1-d c1-e c1-f c1-g x-rt" bis_skin_checked="1"><p style="margin:0"><span>We love to hear from customers, both old and new. Send us a message with details on your request, or any questions you have on our services. We will get back to you as soon as possible with an answer.</span></p></div></div><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><a rel="noopener" data-ux-btn="external" data-ux="ButtonExternal" href="https://wa.me/19785405545" target="_blank" data-aid="CONTACT_INFO_WHATS_APP_REND" data-tccl="ux2.contact.whatsapp.click,click" icon="whatsApp" data-typography="false" class="x-el x-el-a c1-bc c1-c c1-4h c1-bs c1-bt c1-7w c1-71 c1-28 c1-16 c1-1o c1-1p c1-1q c1-1r c1-bu c1-bv c1-bw c1-bx c1-by c1-bz c1-2i c1-70 c1-2x c1-2w c1-2f c1-2h c1-2g c1-o c1-4b c1-72 c1-73 c1-74 c1-75 c1-1j c1-1 c1-2 c1-c0 c1-c1 c1-c2 c1-c3 c1-c4 c1-c5 c1-7u c1-c6 c1-c7 c1-c8 c1-c9"><span data-ux="Element" class="x-el x-el-span c1-c c1-bs c1-o c1-ca c1-r c1-2d c1-2e"><span data-ux="Element" class="x-el x-el-span c1-cb c1-cc c1-x c1-cd c1-z c1-ce c1-cf c1-cg c1-ch c1-bs c1-c"><svg viewBox="0 0 24 24" fill="currentColor" width="24px" height="24px" data-ux="Icon" class="x-el x-el-svg c1-2o c1-2p c1-18 c1-bs c1-c"><svg viewBox="0 0 496 497"><defs><lineargradient id="a" x1="247.32" x2="247.32" y1="446.09" y2="39.9" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#20b038"></stop><stop offset="1" stop-color="#60d66a"></stop></lineargradient><lineargradient id="b" x1="247.32" x2="247.32" y1="453.37" y2="32.61" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f9f9f9"></stop><stop offset="1" stop-color="#fff"></stop></lineargradient></defs><path d="M37.88 453.37l29.59-108A208 208 0 0 1 39.63 241.1c0-115 93.6-208.49 208.56-208.49a208.57 208.57 0 0 1 208.57 208.66c-.05 115-93.62 208.49-208.57 208.49h-.08a208.41 208.41 0 0 1-99.67-25.38zm115.68-66.73l6.34 3.75a173.18 173.18 0 0 0 88.23 24.16h.06c95.55 0 173.31-77.75 173.35-173.3A173.34 173.34 0 0 0 248.26 67.83c-95.62 0-173.38 77.73-173.42 173.28a172.94 172.94 0 0 0 26.5 92.23l4.13 6.55L88 403.84z"></path><path fill="url(#a)" d="M45.13 446.09l28.57-104.3a200.82 200.82 0 0 1-26.88-100.62c0-111 90.36-201.27 201.34-201.27A201.35 201.35 0 0 1 449.5 241.32c0 111-90.37 201.28-201.33 201.28h-.09a201.31 201.31 0 0 1-96.21-24.49z"></path><path fill="url(#b)" d="M37.88 453.37l29.59-108A208 208 0 0 1 39.63 241.1c0-115 93.6-208.49 208.56-208.49a208.57 208.57 0 0 1 208.57 208.66c-.05 115-93.62 208.49-208.57 208.49h-.08a208.41 208.41 0 0 1-99.67-25.38zm115.68-66.73l6.34 3.75a173.18 173.18 0 0 0 88.23 24.16h.06c95.55 0 173.31-77.75 173.35-173.3A173.34 173.34 0 0 0 248.26 67.83c-95.62 0-173.38 77.73-173.42 173.28a172.94 172.94 0 0 0 26.5 92.23l4.13 6.55L88 403.84z"></path><path fill="#fff" d="M196.07 153.94c-3.91-8.68-8-8.85-11.73-9-3-.14-6.51-.13-10-.13a19.15 19.15 0 0 0-13.89 6.52c-4.78 5.22-18.24 17.82-18.24 43.46s18.67 50.42 21.28 53.9 36.05 57.77 89 78.66c44 17.36 53 13.91 62.53 13s30.83-12.61 35.18-24.78 4.34-22.59 3-24.77-4.78-3.48-10-6.08-30.83-15.22-35.61-16.95-8.25-2.61-11.73 2.61-13.45 16.94-16.5 20.42-6.08 3.92-11.29 1.31-22-8.11-41.9-25.86c-15.5-13.82-26-30.87-29-36.09s-.32-8 2.29-10.63c2.34-2.34 5.21-6.09 7.82-9.13s3.47-5.21 5.21-8.69.87-6.52-.44-9.13-11.35-28.34-15.98-38.64z"></path></svg></svg></span><span data-ux="Element" class="x-el x-el-span iconText c1-c c1-bs c1-15 c1-2w c1-ci c1-r c1-2d c1-2e">Message us on WhatsApp</span></span></a><h4 role="heading" aria-level="4" data-ux="ContentHeading" data-aid="CONTACT_INFO_BIZ_NAME_REND" data-typography="HeadingDelta" class="x-el x-el-h4 c1-4f c1-2y c1-2g c1-2h c1-92 c1-t c1-r c1-q c1-8r c1-b c1-2k c1-c c1-4r c1-d c1-e c1-f c1-g">The Tailor's Atelier</h4><p data-ux="ContentText" data-aid="CONTACT_INFO_ADDRESS_REND" data-typography="BodyAlpha" class="x-el x-el-p c1-1 c1-2 c1-2g c1-2h c1-58 c1-q c1-8r c1-b c1-48 c1-c c1-4r c1-d c1-e c1-f c1-g">510 King Street #10, Littleton, Massachusetts 01460, United States</p><p data-ux="ContentText" data-typography="BodyAlpha" class="x-el x-el-p c1-1 c1-2 c1-2g c1-2h c1-58 c1-q c1-8r c1-6p c1-b c1-48 c1-c c1-4r c1-d c1-e c1-f c1-g">+<a rel="" role="link" aria-haspopup="false" data-ux="Link" data-aid="CONTACT_INFO_PHONE_REND" href="tel:19785405545" data-typography="LinkAlpha" class="x-el x-el-a c1-2d c1-2e c1-2f c1-2g c1-2h c1-35 c1-2i c1-b c1-36 c1-c c1-2l c1-37 c1-2n c1-d c1-e c1-f c1-g" data-tccl="ux2.CONTACT.contact4.Content.Default.Link.Default.22104.click,click">1 (978) 540-5545</a>
+
+<a rel="" role="link" aria-haspopup="false" data-ux="Link" data-aid="CONTACT_INFO_EMAIL_REND" href="mailto:thetailorsatelier23@gmail.com" data-typography="LinkAlpha" class="x-el x-el-a c1-2d c1-2e c1-2f c1-2g c1-2h c1-35 c1-2i c1-b c1-36 c1-c c1-2l c1-37 c1-2n c1-d c1-e c1-f c1-g" data-tccl="ux2.CONTACT.contact4.Content.Default.Link.Default.22105.click,click">thetailorsatelier23@gmail.com</a></p></div><div data-ux="Element" id="bs-6" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-o c1-b c1-c c1-d c1-cj c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" data-aid="CONTACT_FORM_CONTAINER_MOBILE" class="x-el x-el-div c1-1 c1-2 c1-15 c1-b c1-c c1-d c1-26 c1-e c1-f c1-g" bis_skin_checked="1"><button data-ux-btn="primary" data-ux="ButtonPrimary" data-aid="CONTACT_FORM_REVEAL_BUTTON_REND" data-typography="ButtonAlpha" class="x-el x-el-button c1-4f c1-2y c1-ck c1-2i c1-70 c1-71 c1-28 c1-2x c1-2w c1-2f c1-2h c1-2g c1-o c1-17 c1-4 c1-4b c1-72 c1-73 c1-74 c1-75 c1-1j c1-cl c1-6d c1-l c1-b c1-4h c1-78 c1-4g c1-cm c1-7a c1-7b c1-7c c1-7d c1-7e c1-7f c1-7g c1-7h c1-7i c1-7j c1-7k c1-7l c1-7m c1-7n c1-7o c1-7p c1-7q c1-7r c1-7s c1-7t c1-7u c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.CONTACT.contact4.Content.Default.Button.Primary.22106.click,click">Get in Touch</button></div><div data-ux="Block" data-aid="CONTACT_FORM_CONTAINER_DESKTOP" class="x-el x-el-div c1-1 c1-2 c1-1a c1-cn c1-b c1-c c1-d c1-co c1-e c1-f c1-g" bis_skin_checked="1"><div bis_skin_checked="1"><div data-ux="Block" id="desktop-form-expanded22103" data-aid="CONTACT_FORM_CONTAINER_REND" class="x-el x-el-div c1-1 c1-2 c1-x c1-z c1-y c1-cp c1-i c1-j c1-cq c1-cr c1-cs c1-4 c1-3 c1-v c1-2x c1-ct c1-51 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-4 c1-3 c1-1y c1-1z c1-ab c1-cu c1-o c1-v c1-1u c1-2x c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><form aria-live="polite" data-ux="Form" class="x-el x-el-form c1-1 c1-2 c1-s c1-b c1-c c1-d c1-e c1-f c1-g"><input type="text" name="_app_id" autocomplete="off" tabindex="-1" style="display:none" value=""><h4 role="heading" aria-level="4" data-ux="HeadingMinor" data-aid="CONTACT_FORM_TITLE_REND" data-typography="HeadingDelta" class="x-el x-el-h4 c1-4f c1-2y c1-2g c1-2h c1-92 c1-t c1-r c1-q c1-8r c1-b c1-2k c1-c c1-4r c1-d c1-e c1-f c1-g">Get in Touch</h4><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Grid" class="x-el x-el-div c1-1 c1-2 c1-v c1-83 c1-84 c1-85 c1-q c1-86 c1-s c1-88 c1-b c1-c c1-89 c1-8a c1-8m c1-8c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="GridCell" data-aid="CONTACT_FORM_COL1" class="x-el x-el-div c1-1 c1-2 c1-83 c1-6a c1-8d c1-8e c1-17 c1-1b c1-8f c1-1d c1-8h c1-b c1-c c1-8i c1-8j c1-8q c1-8l c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-ab c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="InputFloatLabel" type="text" data-aid="CONTACT_FORM_NAME" class="x-el x-el-div c1-1 c1-2 c1-o c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><input type="text" role="textbox" aria-multiline="false" data-ux="InputFloatLabel" id="input22107" value="" data-aid="CONTACT_FORM_NAME" data-typography="InputAlpha" class="x-el x-el-input c1-1 c1-2 c1-h c1-cv c1-4 c1-1f c1-1g c1-1h c1-1i c1-cw c1-4w c1-4x c1-cx c1-1j c1-cy c1-b c1-cz c1-4g c1-4r c1-d0 c1-d1 c1-d2 c1-d3 c1-d4 c1-d5 c1-d6 c1-d7 c1-d8 c1-d9 c1-da c1-4j c1-4k c1-4l c1-4m"><label data-ux="InputFloatLabelLabel" for="input22107" data-typography="InputAlpha" class="x-el x-el-label c1-1 c1-2 c1-2p c1-2g c1-2h c1-x c1-db c1-dc c1-dd c1-1m c1-b c1-cz c1-4g c1-4r c1-da c1-4j c1-4k c1-4l c1-4m">Name</label></div></div></div><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-ab c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="InputFloatLabel" type="text" data-aid="CONTACT_FORM_EMAIL" class="x-el x-el-div c1-1 c1-2 c1-o c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><input type="text" role="textbox" aria-multiline="false" data-ux="InputFloatLabel" id="input22108" value="" data-aid="CONTACT_FORM_EMAIL" data-typography="InputAlpha" class="x-el x-el-input c1-1 c1-2 c1-h c1-cv c1-4 c1-1f c1-1g c1-1h c1-1i c1-cw c1-4w c1-4x c1-cx c1-1j c1-cy c1-b c1-cz c1-4g c1-4r c1-d0 c1-d1 c1-d2 c1-d3 c1-d4 c1-d5 c1-d6 c1-d7 c1-d8 c1-d9 c1-da c1-4j c1-4k c1-4l c1-4m"><label data-ux="InputFloatLabelLabel" for="input22108" data-typography="InputAlpha" class="x-el x-el-label c1-1 c1-2 c1-2p c1-2g c1-2h c1-x c1-db c1-dc c1-dd c1-1m c1-b c1-cz c1-4g c1-4r c1-da c1-4j c1-4k c1-4l c1-4m">Email*</label></div></div></div><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-ab c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><textarea role="textbox" aria-multiline="true" rows="5" aria-label="Message" data-ux="InputTextArea" placeholder="Message" data-aid="CONTACT_FORM_MESSAGE" data-typography="InputAlpha" class="x-el x-el-textarea c1-1 c1-2 c1-h c1-cv c1-4 c1-1f c1-1g c1-1h c1-1i c1-21 c1-4w c1-4x c1-20 c1-1j c1-cy c1-de c1-b c1-cz c1-4g c1-4r c1-d0 c1-d1 c1-d2 c1-d9 c1-da c1-4j c1-4k c1-4l c1-4m"></textarea></div></div></div></div><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-73 c1-21 c1-2w c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><p data-ux="DetailsMinor" data-typography="DetailsBeta" class="x-el x-el-p c1-1 c1-2 c1-2g c1-2h c1-58 c1-q c1-s c1-b c1-df c1-dg c1-4r c1-dh c1-di c1-dj c1-dk">This site is protected by reCAPTCHA and the Google <a rel="noopener" role="link" aria-haspopup="true" data-ux="Link" target="_blank" href="https://policies.google.com/privacy" data-typography="LinkAlpha" class="x-el x-el-a c1-2d c1-2e c1-2f c1-2g c1-2h c1-35 c1-2i c1-b c1-36 c1-dg c1-2l c1-37 c1-2n c1-dh c1-di c1-dj c1-dk" data-tccl="ux2.CONTACT.contact4.Form.Default.Link.Default.22109.click,click">Privacy Policy</a> and <a rel="noopener" role="link" aria-haspopup="true" data-ux="Link" target="_blank" href="https://policies.google.com/terms" data-typography="LinkAlpha" class="x-el x-el-a c1-2d c1-2e c1-2f c1-2g c1-2h c1-35 c1-2i c1-b c1-36 c1-dg c1-2l c1-37 c1-2n c1-dh c1-di c1-dj c1-dk" data-tccl="ux2.CONTACT.contact4.Form.Default.Link.Default.22110.click,click">Terms of Service</a> apply.</p></div><div data-ux="Block" data-aid="CONTACT_FORM_CONTROLS" class="x-el x-el-div controls c1-1 c1-2 c1-v c1-2x c1-28 c1-85 c1-dl c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><button data-ux-btn="primary" data-ux="ButtonPrimary" type="submit" data-aid="CONTACT_SUBMIT_BUTTON_REND" data-tccl="ux2.contact.submit_form.click,click" state="default" data-typography="ButtonAlpha" class="x-el x-el-button c1-4f c1-2y c1-2i c1-70 c1-71 c1-28 c1-2x c1-2w c1-2f c1-2h c1-2g c1-o c1-17 c1-4 c1-4b c1-72 c1-73 c1-74 c1-75 c1-1j c1-cl c1-6d c1-l c1-b c1-4h c1-78 c1-4g c1-cm c1-7a c1-7b c1-7c c1-7d c1-7e c1-7f c1-7g c1-7h c1-7i c1-7j c1-7k c1-7l c1-7m c1-7n c1-7o c1-7p c1-7q c1-7r c1-7s c1-7t c1-7u c1-4j c1-4k c1-4l c1-4m">Send Message</button></div><span data-ux="Text" data-aid="CONTACT_CANCEL_BUTTON_REND" data-typography="BodyAlpha" class="x-el x-el-span c1-1 c1-2 c1-2g c1-2h c1-58 c1-q c1-s c1-dm c1-9z c1-36 c1-2w c1-35 c1-r c1-t c1-b c1-c c1-4r c1-1k c1-dn c1-do c1-dp c1-d c1-e c1-f c1-g">Cancel</span></div></div></div></form></div></div><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><button data-ux-btn="primary" data-ux="ButtonPrimary" data-aid="CONTACT_FORM_REVEAL_BUTTON_REND" data-typography="ButtonAlpha" class="x-el x-el-button c1-4f c1-2y c1-ck c1-2i c1-70 c1-71 c1-28 c1-2x c1-2w c1-2f c1-2h c1-2g c1-o c1-17 c1-4 c1-4b c1-72 c1-73 c1-74 c1-75 c1-1j c1-cl c1-6d c1-l c1-b c1-4h c1-78 c1-4g c1-cm c1-7a c1-7b c1-7c c1-7d c1-7e c1-7f c1-7g c1-7h c1-7i c1-7j c1-7k c1-7l c1-7m c1-7n c1-7o c1-7p c1-7q c1-7r c1-7s c1-7t c1-7u c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.CONTACT.contact4.Content.Default.Button.Primary.22111.click,click">Get in Touch</button></div></div></div></div></div></div></div></div></section></div><div data-ux="SplitItemImage" class="x-el x-el-div c1-1 c1-2 c1-v c1-6a c1-2c c1-17 c1-o c1-dq c1-dr c1-ds c1-dt c1-b c1-c c1-bj c1-bk c1-bl c1-du c1-dv c1-d c1-bm c1-bn c1-3w c1-dw c1-dx c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Map" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Element" id="bs-7" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div id="MapBox-22112" style="left:0;top:0;right:0;bottom:0;position:absolute;cursor:pointer;display:block;transform:translate3d(0,0,0)" data-aid="CONTACT_MAP_REND" bis_skin_checked="1"></div><button data-ux-btn="primary" data-ux="ButtonPrimary" data-tccl="ux2.contact.get_directions.click,click" icon="direction" data-typography="ButtonAlpha" class="x-el x-el-button c1-4f c1-2y c1-x c1-dy c1-dz c1-16 c1-2i c1-70 c1-71 c1-28 c1-2x c1-2w c1-2f c1-2h c1-2g c1-17 c1-4w c1-4x c1-e0 c1-e1 c1-e2 c1-1j c1-cl c1-6d c1-l c1-b c1-4h c1-78 c1-dg c1-cm c1-7a c1-7b c1-7c c1-7d c1-7e c1-7f c1-7g c1-7h c1-7i c1-7j c1-7k c1-7l c1-7m c1-7n c1-7o c1-7p c1-7q c1-7r c1-7s c1-7t c1-e3 c1-e4 c1-e5 c1-7u c1-dh c1-di c1-dj c1-dk"><span data-ux="Element" class="x-el x-el-span c1-2d c1-2e c1-dg c1-b c1-o c1-ad c1-r c1-dh c1-di c1-dj c1-dk"><span data-ux="Element" class="x-el x-el-span c1-1 c1-2 c1-e6 c1-e7 c1-x c1-cd c1-z c1-ce c1-cf c1-cg c1-ch c1-b c1-dg c1-dh c1-di c1-dj c1-dk"><svg viewBox="0 0 24 24" fill="currentColor" width="18px" height="18px" data-ux="Icon" class="x-el x-el-svg c1-1 c1-2 c1-2o c1-2p c1-18 c1-b c1-dg c1-dh c1-di c1-dj c1-dk"><svg width="24" height="24" xmlns="http://www.w3.org/2000/svg"><path d="M19.94 6.078l-7.273 14.546c-.129.265-.345.398-.648.398a.962.962 0 01-.17-.023.716.716 0 01-.557-.705V13.75H4.746a.716.716 0 01-.704-.557.736.736 0 01.045-.477.687.687 0 01.33-.341L18.962 5.1a.683.683 0 01.33-.08c.204 0 .375.073.511.217a.678.678 0 01.21.392.69.69 0 01-.073.448z" fill="currentColor"></path></svg></svg></span><span data-ux="Element" class="x-el x-el-span iconText c1-2d c1-2e c1-dg c1-b c1-15 c1-2w c1-e8 c1-r c1-dh c1-di c1-dj c1-dk">Get directions</span></span></button></div></div></div></div>  </div></div></div><div id="488ae1c4-3d51-4174-9cb2-7b7b4cbb47c9" class="widget widget-footer widget-footer-footer-3" bis_skin_checked="1"><div data-ux="Widget" role="contentinfo" id="488ae1c4-3d51-4174-9cb2-7b7b4cbb47c9" class="x-el x-el-div x-el c1-1 c1-2 c1-6d c1-b c1-c c1-d c1-e c1-f c1-g c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div bis_skin_checked="1"> <section data-ux="Section" class="x-el x-el-section c1-1 c1-2 c1-6d c1-e9 c1-ea c1-b c1-c c1-m c1-n c1-d c1-e c1-f c1-g"><div data-ux="Container" class="x-el x-el-div c1-1 c1-2 c1-14 c1-13 c1-1y c1-1z c1-17 c1-b c1-c c1-5r c1-d c1-5s c1-e c1-5t c1-f c1-5u c1-g" bis_skin_checked="1"><div data-ux="Layout" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="Grid" class="x-el x-el-div c1-1 c1-2 c1-v c1-83 c1-84 c1-85 c1-q c1-r c1-s c1-t c1-28 c1-2w c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="GridCell" class="x-el x-el-div c1-1 c1-2 c1-83 c1-eb c1-8d c1-8e c1-17 c1-1b c1-1c c1-1d c1-1e c1-b c1-c c1-d c1-ec c1-ed c1-e c1-f c1-g" bis_skin_checked="1"><div data-ux="FooterDetails" data-aid="FOOTER_COPYRIGHT_RENDERED" data-typography="DetailsAlpha" class="x-el c1-1 c1-2 c1-2g c1-2h c1-58 c1-q c1-s c1-b c1-ee c1-4g c1-4r c1-4j c1-ef c1-4k c1-4l c1-4m x-rt" bis_skin_checked="1"><p style="margin:0"><span>Copyright © 2023 The Tailor's Atelier - All Rights Reserved.</span></p></div></div><div data-ux="GridCell" class="x-el x-el-div c1-1 c1-2 c1-83 c1-eb c1-8d c1-8e c1-17 c1-1b c1-1c c1-1d c1-1e c1-b c1-c c1-d c1-ec c1-ed c1-e c1-f c1-g" bis_skin_checked="1"><p data-ux="FooterDetails" data-aid="FOOTER_POWERED_BY_RENDERED" data-typography="DetailsAlpha" class="x-el x-el-p c1-1 c1-2 c1-2g c1-2h c1-58 c1-ck c1-s c1-b c1-ee c1-4g c1-4r c1-4j c1-eg c1-40 c1-4k c1-4l c1-4m"><span>Powered by <a rel="nofollow noopener" role="link" aria-haspopup="true" data-ux="Link" target="_blank" data-aid="FOOTER_POWERED_BY_RENDERED_LINK" href="https://www.godaddy.com/websites/website-builder?isc=pwugc&amp;utm_source=wsb&amp;utm_medium=applications&amp;utm_campaign=en-us_corp_applications_base" data-typography="LinkAlpha" class="x-el x-el-a c1-2d c1-2e c1-2f c1-2g c1-2h c1-35 c1-2i c1-ck c1-b c1-6q c1-4g c1-2l c1-eh c1-ei c1-4j c1-eg c1-40 c1-4k c1-4l c1-4m" data-tccl="ux2.FOOTER.footer3.Layout.Default.Link.Default.22113.click,click">GoDaddy</a></span></p></div></div></div></div><div data-ux="Container" class="x-el x-el-div c1-1 c1-2 c1-14 c1-13 c1-1y c1-1z c1-17 c1-2w c1-ck c1-b c1-c c1-5r c1-d c1-5s c1-e c1-5t c1-f c1-5u c1-g" bis_skin_checked="1"><ul data-ux="NavFooter" class="x-el x-el-ul c1-1 c1-2 c1-ej c1-1b c1-1c c1-1d c1-1e c1-q c1-r c1-s c1-t c1-1k c1-b c1-c c1-32 c1-ek c1-d c1-e c1-f c1-g"><li style="display:inline-block"><a rel="" role="button" aria-haspopup="menu" data-ux="NavFooterLink" data-page="db92f1e0-4a95-4a25-82e1-a794b66f2902" target="" data-aid="FOOTER_PAGE_LINK_0_RENDERED" data-edit-interactive="true" href="https://thetailorsatelier.godaddysites.com/" data-typography="NavAlpha" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-2p c1-2i c1-73 c1-74 c1-el c1-em c1-b c1-cl c1-4g c1-4r c1-eh c1-en c1-eo c1-ep c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.FOOTER.footer3.Nav.Footer.Link.Default.22114.click,click">Home</a></li><li style="display:inline-block"><a rel="" role="link" aria-haspopup="false" data-ux="NavFooterLink" data-page="2eb891f7-7cee-4769-9cbb-3773c4d75933" target="" data-aid="FOOTER_PAGE_LINK_1_RENDERED" data-edit-interactive="true" href="https://thetailorsatelier.godaddysites.com/about" data-typography="NavAlpha" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-2p c1-2i c1-73 c1-74 c1-el c1-em c1-b c1-cl c1-4g c1-4r c1-eh c1-en c1-eo c1-ep c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.FOOTER.footer3.Nav.Footer.Link.Default.22115.click,click">About</a></li><li style="display:inline-block"><a rel="" role="link" aria-haspopup="false" data-ux="NavFooterLink" data-page="a723b720-4959-40e8-aa43-3e6dc1f3cead" target="" data-aid="FOOTER_PAGE_LINK_2_RENDERED" data-edit-interactive="true" href="https://thetailorsatelier.godaddysites.com/gallery" data-typography="NavAlpha" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-2p c1-2i c1-73 c1-74 c1-el c1-em c1-b c1-cl c1-4g c1-4r c1-eh c1-en c1-eo c1-ep c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.FOOTER.footer3.Nav.Footer.Link.Default.22116.click,click">Gallery</a></li><li style="display:inline-block"><a rel="" role="link" aria-haspopup="false" data-ux="NavFooterLink" data-page="6c35b9dd-94aa-4d2f-bf5c-58d8caa1816c" target="" data-aid="FOOTER_PAGE_LINK_3_RENDERED" data-edit-interactive="true" href="https://thetailorsatelier.godaddysites.com/contact" data-typography="NavAlpha" class="x-el x-el-a c1-4f c1-2y c1-2f c1-2g c1-2h c1-2p c1-2i c1-73 c1-74 c1-el c1-em c1-b c1-cl c1-4g c1-4r c1-eh c1-en c1-eo c1-ep c1-4j c1-4k c1-4l c1-4m" data-tccl="ux2.FOOTER.footer3.Nav.Footer.Link.Default.22117.click,click">Contact</a></li></ul></div></section>  </div></div></div><div id="1ea672fd-3e38-43c4-af0a-c2e1de967329" class="widget widget-messaging widget-messaging-messaging-1" bis_skin_checked="1"><div data-ux="Element" id="bs-8" class="x-el x-el-div c1-1 c1-2 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><span data-ux="Element" class="x-el x-el-span c2-1 c2-2 c2-3 c2-4 c2-5 c2-6 c2-7 c2-8"><div data-ux="Block" class="x-el x-el-div c2-1 c2-2 c2-9 c2-a c2-b c2-c c2-d c2-e c2-3 c2-4 c2-5 c2-f c2-6 c2-7 c2-8" bis_skin_checked="1"><div bis_skin_checked="1"><div bis_skin_checked="1"></div></div></div></span></div></div><div id="3bda0871-d74d-4cef-953a-32ef1f6987c4" class="widget widget-popup widget-popup-popup-1" bis_skin_checked="1"></div><div id="8dc4c164-1665-4428-bb08-c3a67175e5e1" class="widget widget-cookie-banner widget-cookie-banner-cookie-1" bis_skin_checked="1"><div data-ux="Group" data-aid="FOOTER_COOKIE_BANNER_RENDERED" id="8dc4c164-1665-4428-bb08-c3a67175e5e1-banner" class="x-el x-el-div c1-1 c1-2 c1-59 c1-10 c1-ew c1-4 c1-p c1-29 c1-6d c1-1j c1-51 c1-ex c1-ey c1-ez c1-f0 c1-dl c1-1z c1-ab c1-1y c1-q c1-r c1-s c1-t c1-1k c1-b c1-c c1-f1 c1-f2 c1-f3 c1-f4 c1-f5 c1-f6 c1-f7 c1-d c1-e c1-f c1-g" bis_skin_checked="1"><h4 role="heading" aria-level="4" data-ux="Heading" data-aid="FOOTER_COOKIE_TITLE_RENDERED" data-typography="HeadingDelta" class="x-el x-el-h4 c1-4f c1-2y c1-2g c1-2h c1-92 c1-t c1-r c1-q c1-s c1-74 c1-b c1-cl c1-c c1-4r c1-d c1-e c1-f c1-g">This website uses cookies.</h4><div data-ux="Text" data-aid="FOOTER_COOKIE_MESSAGE_RENDERED" data-typography="BodyAlpha" class="x-el c1-1 c1-2 c1-2g c1-2h c1-58 c1-q c1-s c1-f8 c1-51 c1-b c1-f9 c1-c c1-4r c1-fa c1-d c1-e c1-f c1-g x-rt" bis_skin_checked="1"><p style="margin:0"><span>We use cookies to analyze website traffic and optimize your website experience. By accepting our use of cookies, your data will be aggregated with all other user data.</span></p></div><div data-ux="Block" class="x-el x-el-div c1-1 c1-2 c1-v c1-62 c1-b c1-c c1-d c1-e c1-f c1-g" bis_skin_checked="1"><a data-ux-btn="primary" data-ux="ButtonPrimary" href="https://thetailorsatelier.godaddysites.com/" data-aid="FOOTER_COOKIE_DECLINE_RENDERED" id="8dc4c164-1665-4428-bb08-c3a67175e5e1-decline" data-typography="ButtonAlpha" class="x-el x-el-a c1-4f c1-2y c1-v c1-1u c1-2x c1-2i c1-ck c1-fb c1-fc c1-fd c1-6a c1-70 c1-28 c1-2w c1-2f c1-2h c1-2g c1-o c1-17 c1-4 c1-4w c1-4x c1-e0 c1-e1 c1-e2 c1-1j c1-76 c1-77 c1-l c1-b c1-4h c1-78 c1-dg c1-fe c1-79 c1-7a c1-7b c1-7c c1-7d c1-7e c1-7f c1-7g c1-7h c1-7i c1-7j c1-7k c1-7l c1-7m c1-7n c1-7o c1-7p c1-7q c1-7r c1-7s c1-7t c1-7u c1-dh c1-di c1-dj c1-dk" data-tccl="ux2.COOKIE_BANNER.cookie1.Group.Default.Button.Primary.22119.click,click">Decline</a><a data-ux-btn="primary" data-ux="ButtonPrimary" href="https://thetailorsatelier.godaddysites.com/" data-aid="FOOTER_COOKIE_CLOSE_RENDERED" id="8dc4c164-1665-4428-bb08-c3a67175e5e1-accept" data-typography="ButtonAlpha" class="x-el x-el-a c1-4f c1-2y c1-v c1-1u c1-2x c1-2i c1-ck c1-fb c1-fc c1-fd c1-6a c1-70 c1-28 c1-2w c1-2f c1-2h c1-2g c1-o c1-17 c1-4 c1-4w c1-4x c1-e0 c1-e1 c1-e2 c1-1j c1-76 c1-77 c1-l c1-b c1-4h c1-78 c1-dg c1-fe c1-79 c1-7a c1-7b c1-7c c1-7d c1-7e c1-7f c1-7g c1-7h c1-7i c1-7j c1-7k c1-7l c1-7m c1-7n c1-7o c1-7p c1-7q c1-7r c1-7s c1-7t c1-7u c1-dh c1-di c1-dj c1-dk" data-tccl="ux2.COOKIE_BANNER.cookie1.Group.Default.Button.Primary.22120.click,click">Accept</a></div></div></div></div></div></div>
+<script type="text/javascript">"IntersectionObserver"in window&&"Intl"in window&&"Locale"in window.Intl||document.write(`\x3Cscript src="https://img1.wsimg.com/poly/v3/polyfill.min.js?rum=0&unknown=polyfill&flags=gated&features=Intl.~locale.en-US">\x3C/script>`)</script>
+<script src="./The Tailor&#39;s Atelier_files/script.js" crossorigin=""></script>
+<script src="./The Tailor&#39;s Atelier_files/UX.4.34.6.js" crossorigin=""></script>
+<script src="./The Tailor&#39;s Atelier_files/script(1).js" crossorigin=""></script><script type="text/javascript" src="./The Tailor&#39;s Atelier_files/tccl-tti.min.js"></script>
+<script defer="" src="./The Tailor&#39;s Atelier_files/tccl.min.js" crossorigin=""></script><script src="./The Tailor&#39;s Atelier_files/reamaze-godaddy-loader.js" async="" type="text/javascript"></script><scribe-shadow id="crxjs-ext" style="position: fixed; width: 0px; height: 0px; top: 0px; left: 0px; z-index: 2147483647; overflow: visible;"><template shadowrootmode="open"><div id="root-scribe-elem" style="position: fixed; width: 0px; height: 0px; top: 0px; left: 0px; overflow: visible; color: rgb(15, 23, 42);"></div><link rel="stylesheet" href="chrome-extension://okfkdaglfjjjfefdcppliegebpoegaii/assets/style.css"></template></scribe-shadow><div id="reamazejs-container" bis_skin_checked="1"><div id="reamaze-widget-container" style="font: 13px / 17px Nunito, Helvetica, Arial, sans-serif; display: block;" bis_skin_checked="1"><audio preload="none"><source src="https://cdn.reamaze.com/audio/snapup.mp3" type="audio/mpeg"><source src="https://cdn.reamaze.com/audio/snapup.ogg" type="audio/ogg"></audio><span><div aria-label="Chat widget toggle" tabindex="0" role="button" id="reamaze-widget" class="whoop rmz-notification " bis_skin_checked="1" style="position: fixed; height: 58px; cursor: pointer; opacity: 0.95; z-index: 2147483647; background: rgb(109, 168, 154); border-radius: 58px; box-shadow: rgba(0, 0, 0, 0.2) 0px 3px 3px; perspective: 1000px; backface-visibility: hidden; transition: all 0.2s ease-in-out 0s; bottom: 22px; right: 22px;"><style>
+        #reamaze-widget:hover {
+          opacity: 1;
+          transform: translate3d(0, -4px, 0);
+          box-shadow: 0 2px 0px rgba(0,0,0,.09),0 4px 10px rgba(0,0,0,.24) !important;
+        }
+        #reamaze-widget-label-container {
+          overflow: hidden;
+        }
+
+        .rmz-label-text {
+          color: rgba(255, 255, 255, 1);
+          font-family: "Nunito", Helvetica, Arial, sans-serif;
+          font-size: 16px;
+          line-height: 58px;
+        }
+
+        #reamaze-widget-label {
+          vertical-align: top;
+          display: inline-block;
+          padding-right: 16px;
+          margin-right: 0;
+        }
+        #reamaze-widget-icon img {
+          width: 100%;
+          height: 100%;
+          background: transparent;
+          opacity: 1;
+          display: inline-block;
+        }
+        #reamaze-widget #reamaze-widget-icon {
+          display: block;
+          overflow: hidden;
+          width: 58px;
+          height: 58px;
+          border-radius: 58px;
+        }
+        #reamaze-widget.rmz-static {
+          max-width: calc(100vw - 40px);
+          display: -webkit-box;
+          display: -ms-flexbox;
+          display: -webkit-flex;
+          display: flex;
+        }
+        #reamaze-widget.rmz-custom.rmz-static #reamaze-widget-icon {
+          margin-right: 10px;
+        }
+        #reamaze-widget.rmz-static #reamaze-widget-icon {
+          display: inline-block;
+          border-radius: 58px;
+          -webkit-flex-shrink: 0;
+          -moz-flex-shrink: 0;
+          -ms-flex: 0 1 auto;
+          flex-shrink: 0;
+        }
+        #reamaze-widget.rmz-static .rmz-label-text {
+          white-space: nowrap;
+          text-overflow: ellipsis;
+          overflow: hidden;
+        }
+        #reamaze-widget.rmz-static #rmz-widget-label {
+          display: block;
+        }
+                .whoop {             -moz-animation: 0.4s whoop 0s;            -webkit-animation: 0.4s whoop 0s;            animation: 0.4s whoop 0s;          }          .whoop #reamaze-widget-icon {             -moz-animation: 0.6s toothpaste 0s;            -webkit-animation: 0.6s toothpaste 0s;            animation: 0.6s toothpaste 0s;          }                    @-moz-keyframes whoop {          0% {            -webkit-transform: scale(0);            transform: scale(0);          }          50% {            -webkit-transform: scale(1.3);            transform: scale(1.3);          }          100% {            -webkit-transform: scale(1);            transform: scale(1);          }        }            @-webkit-keyframes whoop {          0% {            -webkit-transform: scale(0);            transform: scale(0);          }          50% {            -webkit-transform: scale(1.3);            transform: scale(1.3);          }          100% {            -webkit-transform: scale(1);            transform: scale(1);          }        }            @keyframes whoop {          0% {            -webkit-transform: scale(0);            transform: scale(0);          }          50% {            -webkit-transform: scale(1.3);            transform: scale(1.3);          }          100% {            -webkit-transform: scale(1);            transform: scale(1);          }        }                      @-moz-keyframes toothpaste {          0% { opacity: 0; }          40% { opacity: 0; }          100% { opacity: 1; }        }            @-webkit-keyframes toothpaste {          0% { opacity: 0; }          40% { opacity: 0; }          100% { opacity: 1; }        }            @keyframes toothpaste {          0% { opacity: 0; }          40% { opacity: 0; }          100% { opacity: 1; }        }          </style><span id="reamaze-widget-icon"><svg width="58" height="58" style="width: 58px; height: 58px;"><g transform="scale(1.6111111111111112) translate(2, 2)"><g transform="scale(0.7) translate(8, 5.625)"><path fill="none" stroke="rgba(255, 255, 255, 1)" stroke-width="3" d="M22.34 3.33008H9.66008C6.7164 3.33008 4.33008 5.7164 4.33008 8.66008V29.0353C4.33008 29.5789 4.9433 29.8962 5.38705 29.5823L11.2917 25.4046C11.9673 24.9267 12.7745 24.67 13.602 24.67H22.34C25.2837 24.67 27.67 22.2837 27.67 19.34V8.66008C27.67 5.7164 25.2837 3.33008 22.34 3.33008Z"></path></g></g></svg></span><span style="position: absolute; top: -5px; right: -5px; padding: 5px 7px 4px; min-width: 12px; border-radius: 20px; font-size: 11px; line-height: 11px; text-align: center; background-color: rgb(255, 0, 0); font-family: Nunito, Helvetica, Arial, sans-serif; color: rgb(253, 253, 253); box-shadow: rgb(187, 0, 0) 0px 0px 1px;">1</span></div></span><div id="rmz-notify-prompts" bis_skin_checked="1"><style>
+          #rmz-notifications {
+            position: fixed;
+            z-index: 2147483647;
+            left: auto;
+            right: 22px;
+            top: auto;
+            bottom: 80px;
+            margin-right: -20px;
+            width: 380px;
+            height: 231px;
+          }
+          </style><div id="rmz-notifications" bis_skin_checked="1"><div bis_skin_checked="1" style="width: 100%; height: 100%;"><iframe title="Re:amaze Chat" allow="microphone; camera" allowfullscreen="" allowtransparency="true" style="width: 100% !important; height: 100% !important; border: 0px; position: relative;" src="./The Tailor&#39;s Atelier_files/saved_resource.html"></iframe></div></div></div></div></div><iframe style="width: 0px !important; height: 0px !important; display: none;" src="./The Tailor&#39;s Atelier_files/saved_resource(1).html"></iframe></body><grammarly-desktop-integration data-grammarly-shadow-root="true"><template shadowrootmode="open"><style>
+      div.grammarly-desktop-integration {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        padding: 0;
+        margin: -1px;
+        overflow: hidden;
+        clip: rect(0, 0, 0, 0);
+        white-space: nowrap;
+        border: 0;
+        -moz-user-select: none;
+        -webkit-user-select: none;
+        -ms-user-select:none;
+        user-select:none;
+      }
+
+      div.grammarly-desktop-integration:before {
+        content: attr(data-content);
+      }
+    </style><div aria-label="grammarly-integration" role="group" tabindex="-1" class="grammarly-desktop-integration" data-content="{&quot;mode&quot;:&quot;full&quot;,&quot;isActive&quot;:true,&quot;isUserDisabled&quot;:false}"></div></template></grammarly-desktop-integration></html>
